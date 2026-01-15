@@ -3,7 +3,7 @@
  * Points to http://localhost:8000 by default
  */
 
-const API_BASE_URL = 'http://127.0.0.1:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
 
 export interface ApiError {
   detail: string
@@ -506,4 +506,3 @@ export async function getUnscannedEmailsCount(userId: string) {
     error?: string
   }>(`/api/unscanned-count?user_id=${userId}`)
 }
-

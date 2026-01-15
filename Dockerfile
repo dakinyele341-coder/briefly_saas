@@ -4,8 +4,8 @@ FROM python:3.9
 # Set the working directory
 WORKDIR /code
 
-# Copy the requirements file
-COPY ./backend/requirements.txt /code/requirements.txt
+# Copy the requirements file from root
+COPY requirements.txt /code/requirements.txt
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt

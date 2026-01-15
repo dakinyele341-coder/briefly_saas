@@ -43,7 +43,12 @@ app = FastAPI(title="Briefly API", version="1.0.0")
 # Production: Add your Vercel frontend URL and Render backend URL
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://brieflysaas.vercel.app",
+        "https://brieflysaas.vercel.app/",
+        "https://dakinyele341-briefly-backend.hf.space"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1893,6 +1898,7 @@ class PaymentWebhookRequest(BaseModel):
     metadata: Optional[Dict] = None
 
 
+# Webhook URL: https://dakinyele341-briefly-backend.hf.space/webhook
 @app.post("/api/webhooks/payment")
 async def payment_webhook(request: PaymentWebhookRequest):
     """
