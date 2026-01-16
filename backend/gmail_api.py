@@ -122,10 +122,18 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
             service = get_gmail_service()
 
         from datetime import datetime, timedelta
-        date_cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y/%m/%d')
-        query = f'after:{date_cutoff}'
         
-        logger.info(f"[Gmail API] Fetching emails with query: '{query}', maxResults: {limit}")
+        # Build a more inclusive query
+        # Search in inbox AND sent to catch all emails user might care about
+        if days > 0:
+            date_cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y/%m/%d')
+            # Search in inbox and sent folders, after the date cutoff
+            query = f'(in:inbox OR in:sent) after:{date_cutoff}'
+            logger.info(f"[Gmail API] Fetching emails with query: '{query}', maxResults: {limit}")
+        else:
+            # No date restriction - get most recent emails
+            query = 'in:inbox OR in:sent'
+            logger.info(f"[Gmail API] Fetching recent emails without date filter, maxResults: {limit}")
         
         results = service.users().messages().list(
             userId='me',
@@ -138,9 +146,28 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
         
         if len(messages) == 0:
             logger.warning(f"[Gmail API] No messages found! This could mean:")
-            logger.warning(f"  1. No emails in inbox from after {date_cutoff}")
+            if days > 0:
+                logger.warning(f"  1. No emails in inbox or sent from after {date_cutoff}")
+            else:
+                logger.warning(f"  1. No emails in inbox or sent at all")
             logger.warning(f"  2. Gmail credentials might be expired or invalid")
             logger.warning(f"  3. Gmail API scopes might be insufficient")
+            logger.warning(f"  4. Trying to search ALL mail (not just inbox/sent)...")
+            
+            # FALLBACK: Try searching ALL mail without folder restriction
+            if days > 0:
+                fallback_query = f'after:{date_cutoff}'
+            else:
+                fallback_query = ''  # All mail
+            
+            logger.info(f"[Gmail API] Attempting fallback search: '{fallback_query or 'all mail'}'")
+            results = service.users().messages().list(
+                userId='me',
+                q=fallback_query,
+                maxResults=limit
+            ).execute()
+            messages = results.get('messages', [])
+            logger.info(f"[Gmail API] Fallback search returned {len(messages)} message(s)")
         
         email_list = []
         
