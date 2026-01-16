@@ -494,18 +494,32 @@ async def scan_emails(request: ScanRequest):
         pdf_analysis_allowed = (user_role == 'Investor' and has_pro_plan) or is_admin
 
         # Determine scan time range
-        # DEFAULT BEHAVIOR: All users scan recent emails (last 24-48 hours) to ensure all emails are analyzed
+        # DEFAULT BEHAVIOR: All users scan recent emails to ensure all emails are analyzed
         # The msg_id idempotency check prevents duplicate processing while allowing rescans
         if request.time_range == "auto":
-            # All users (new, existing, admin) scan recent emails from last 24-48 hours
-            # This ensures we capture all emails regardless of Gmail "read" status
-            scan_days = 2  # 48 hours by default for comprehensive coverage
-            logger.info(f"[Scan] Performing automatic scan - analyzing emails from last {scan_days * 24} hours")
+            # All users scan recent emails - increased to 7 days for better coverage
+            # Many users don't receive emails daily, so 48 hours was too restrictive
+            scan_days = 7  # 7 days by default to ensure we catch emails
+            logger.info(f"[Scan] Performing automatic scan - analyzing emails from last {scan_days} days")
             logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
             
             try:
                 emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
                 logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
+                
+                # FALLBACK 1: If no emails found in 7 days, try 30 days
+                if len(emails) == 0:
+                    logger.warning(f"[Scan] No emails found in {scan_days} days, trying extended range (30 days)")
+                    scan_days = 30
+                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                    logger.info(f"[Scan] Extended search returned {len(emails)} emails")
+                    
+                    # FALLBACK 2: If still no emails, try fetching ALL recent emails without time limit
+                    if len(emails) == 0:
+                        logger.warning(f"[Scan] No emails found in 30 days, fetching most recent emails without date filter")
+                        emails = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=min(request.limit, 10))
+                        logger.info(f"[Scan] Unread emails search returned {len(emails)} emails")
+                
             except Exception as gmail_error:
                 logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
                 raise HTTPException(
@@ -564,15 +578,21 @@ async def scan_emails(request: ScanRequest):
                 except Exception as gmail_error:
                     logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
                     raise HTTPException(
-                        status_code=500,
+        status_code=500,
                         detail=f"Failed to fetch emails from Gmail. Error: {str(gmail_error)[:100]}"
                     )
         
         if not emails:
-            # No emails found in the specified time range
-            time_desc = f"{scan_days * 24} hours" if request.time_range == "auto" else request.time_range
-            logger.info(f"[Scan] No emails found for user {request.user_id} in {time_desc} scan")
-            msg = f"No emails found in your inbox from the last {time_desc}. Try extending the time range or check your Gmail connection."
+            # No emails found even after fallback attempts
+            logger.warning(f"[Scan] No emails found for user {request.user_id} even after trying multiple time ranges (7 days, 30 days, unread)")
+            msg = (
+                "No emails found in your Gmail account after checking multiple time ranges. "
+                "This could mean:\n"
+                "1. Your Gmail account truly has no emails\n"
+                "2. Gmail credentials may need to be reconnected\n"
+                "3. There may be a Gmail API permission issue\n\n"
+                "Please try: Disconnect and reconnect your Gmail account in Settings."
+            )
             return ScanResponse(summaries=[], processed=0, skipped=0, total_found=0, message=msg)
         
         total_found = len(emails)
@@ -623,12 +643,13 @@ async def scan_emails(request: ScanRequest):
                     if "API quota exceeded" in error_msg or "api_error" in error_msg:
                         logger.warning("Warning: Gemini API quota exceeded - some emails may not be properly analyzed")
                         # Still count as processed but mark as having API issues
-                        processed += 1
+                processed += 1
                     else:
                         skipped += 1
         
         # Prepare detailed summary message
-        time_desc = f"{scan_days * 24} hours" if request.time_range == "auto" else request.time_range
+        # Use actual scan_days which may have been adjusted by fallback logic
+        time_desc = f"{scan_days} days" if request.time_range == "auto" else request.time_range
         message = f"✅ Scan complete! Found {total_found} email(s) in the last {time_desc}. "
         
         if processed > 0:
