@@ -457,10 +457,15 @@ async def scan_emails(request: ScanRequest):
 
         if not credentials_json:
             raise HTTPException(status_code=401, detail="Google credentials not found. Please connect your Gmail account.")
+        
+        # Log credentials retrieval (without exposing the actual credentials)
+        logger.info(f"[Scan] Retrieved Gmail credentials for user {request.user_id}")
 
         # Get user profile to check email for admin status
         user_profile = models.get_user_profile(supabase, request.user_id)
         user_email = user_profile.get('email') if user_profile else None
+        
+        logger.info(f"[Scan] User email: {user_email}, Role: {request.user_role}")
 
         # Check subscription access before processing
         has_access = check_user_access(request.user_id, user_email)
@@ -496,7 +501,17 @@ async def scan_emails(request: ScanRequest):
             # This ensures we capture all emails regardless of Gmail "read" status
             scan_days = 2  # 48 hours by default for comprehensive coverage
             logger.info(f"[Scan] Performing automatic scan - analyzing emails from last {scan_days * 24} hours")
-            emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+            logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
+            
+            try:
+                emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
+            except Exception as gmail_error:
+                logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to fetch emails from Gmail. Please check your Gmail connection and try reconnecting. Error: {str(gmail_error)[:100]}"
+                )
         else:
             # Custom time range selected by user
             # All users get access to custom time ranges
@@ -531,11 +546,27 @@ async def scan_emails(request: ScanRequest):
                     days = value
 
                 logger.info(f"[Scan] {user_type.title()} custom time range: {request.time_range} ({days} days)")
-                emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
+                try:
+                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
+                    logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
+                except Exception as gmail_error:
+                    logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to fetch emails from Gmail. Error: {str(gmail_error)[:100]}"
+                    )
             else:
                 # Fallback to auto mode (48 hours)
                 logger.warning(f"[Scan] Invalid time range '{request.time_range}' for {user_type}, falling back to 48-hour scan")
-                emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
+                try:
+                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
+                    logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
+                except Exception as gmail_error:
+                    logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to fetch emails from Gmail. Error: {str(gmail_error)[:100]}"
+                    )
         
         if not emails:
             # No emails found in the specified time range

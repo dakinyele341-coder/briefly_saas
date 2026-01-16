@@ -110,15 +110,22 @@ def fetch_unread_emails(credentials_json: Optional[str] = None, limit: int = 20)
 
 def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100, days: float = 7) -> List[Dict]:
     """Fetch recent emails (read or unread) from the last N days (supports fractional days for hours)."""
+    import logging
+    logger = logging.getLogger("uvicorn")
+    
     try:
         if credentials_json:
+            logger.info(f"[Gmail API] Creating service from credentials (credentials length: {len(credentials_json)} chars)")
             service = get_gmail_service_from_credentials(credentials_json)
         else:
+            logger.info(f"[Gmail API] Using local token.json for credentials")
             service = get_gmail_service()
 
         from datetime import datetime, timedelta
         date_cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y/%m/%d')
         query = f'after:{date_cutoff}'
+        
+        logger.info(f"[Gmail API] Fetching emails with query: '{query}', maxResults: {limit}")
         
         results = service.users().messages().list(
             userId='me',
@@ -127,23 +134,32 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
         ).execute()
         
         messages = results.get('messages', [])
+        logger.info(f"[Gmail API] Query returned {len(messages)} message(s)")
+        
+        if len(messages) == 0:
+            logger.warning(f"[Gmail API] No messages found! This could mean:")
+            logger.warning(f"  1. No emails in inbox from after {date_cutoff}")
+            logger.warning(f"  2. Gmail credentials might be expired or invalid")
+            logger.warning(f"  3. Gmail API scopes might be insufficient")
+        
         email_list = []
         
-        for msg in messages:
+        for i, msg in enumerate(messages):
+            logger.debug(f"[Gmail API] Fetching details for message {i+1}/{len(messages)} (id: {msg['id'][:20]}...)")
             email_data = get_email_details(service, msg['id'])
             if email_data:
                 email_list.append(email_data)
         
+        logger.info(f"[Gmail API] Successfully fetched {len(email_list)} email(s) with full details")
         return email_list
     except HttpError as error:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f'Gmail API error: Failed to fetch recent emails (error code: {error.resp.status if hasattr(error, "resp") else "unknown"})')
+        logger.error(f'Gmail API HttpError: Failed to fetch recent emails (error code: {error.resp.status if hasattr(error, "resp") else "unknown"})')
+        logger.error(f'Gmail API HttpError details: {str(error)}')
         return []
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f'Error fetching recent emails: {e}')
+        logger.error(f'Gmail API Exception: Error fetching recent emails: {type(e).__name__}: {str(e)}')
+        import traceback
+        logger.error(f'Traceback: {traceback.format_exc()}')
         return []
 
 
