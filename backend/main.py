@@ -643,7 +643,7 @@ async def scan_emails(request: ScanRequest):
                     if "API quota exceeded" in error_msg or "api_error" in error_msg:
                         logger.warning("Warning: Gemini API quota exceeded - some emails may not be properly analyzed")
                         # Still count as processed but mark as having API issues
-                processed += 1
+                        processed += 1
                     else:
                         skipped += 1
         
