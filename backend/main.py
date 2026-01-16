@@ -45,9 +45,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "https://dakinyele341-briefly-backend.hf.space",
         "https://brieflysaas.vercel.app",
-        "https://brieflysaas.vercel.app/",
-        "https://dakinyele341-briefly-backend.hf.space"
+        "https://briefly-saas-amber.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -432,8 +432,9 @@ def has_existing_summaries(user_id: str) -> bool:
 async def scan_emails(request: ScanRequest):
     """
     Scan and process emails for a user using Dual-Pipeline Classifier.
-    New users (including admin) can scan emails from the last 7 days.
-    Existing users can only scan unread emails.
+    All users scan recent emails from the last 24-48 hours by default.
+    Emails are analyzed using Gemini API regardless of Gmail read status.
+    The msg_id idempotency check prevents duplicate processing.
     """
     try:
         # Validate input
@@ -488,19 +489,18 @@ async def scan_emails(request: ScanRequest):
         pdf_analysis_allowed = (user_role == 'Investor' and has_pro_plan) or is_admin
 
         # Determine scan time range
+        # DEFAULT BEHAVIOR: All users scan recent emails (last 24-48 hours) to ensure all emails are analyzed
+        # The msg_id idempotency check prevents duplicate processing while allowing rescans
         if request.time_range == "auto":
-            if can_scan_past:
-                # New users (including admin) get access to past emails (24 hours) for their first scan
-                logger.info(f"[Scan] New user or admin ({'admin' if is_admin else 'new user'}) - performing 24-hour scan")
-                emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=1)
-            else:
-                # Existing users only scan unread emails for efficiency
-                logger.info(f"[Scan] Existing user - scanning only unread emails")
-                emails = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=request.limit)
+            # All users (new, existing, admin) scan recent emails from last 24-48 hours
+            # This ensures we capture all emails regardless of Gmail "read" status
+            scan_days = 2  # 48 hours by default for comprehensive coverage
+            logger.info(f"[Scan] Performing automatic scan - analyzing emails from last {scan_days * 24} hours")
+            emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
         else:
             # Custom time range selected by user
-            # New users limited to 24 hours - 7 days range
-            new_user_time_ranges = {
+            # All users get access to custom time ranges
+            user_time_ranges = {
                 "1day": ("days", 1),   # 24 hours
                 "3days": ("days", 3),
                 "7days": ("days", 7)
@@ -514,19 +514,13 @@ async def scan_emails(request: ScanRequest):
                 "30days": ("days", 30)
             }
 
-            # Choose appropriate time ranges based on user type
+            # Choose appropriate time ranges based on user type (admin gets extended options)
             if is_admin:
                 time_range_map = admin_time_ranges
                 user_type = "admin"
-            elif can_scan_past:
-                time_range_map = new_user_time_ranges
-                user_type = "new user"
             else:
-                # Existing users cannot use custom time ranges
-                logger.warning(f"[Scan] Existing user cannot use custom time ranges, only unread emails allowed")
-                emails = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=request.limit)
-                # Jump to processing
-                pass
+                time_range_map = user_time_ranges
+                user_type = "user"
 
             if request.time_range in time_range_map:
                 unit, value = time_range_map[request.time_range]
@@ -539,22 +533,19 @@ async def scan_emails(request: ScanRequest):
                 logger.info(f"[Scan] {user_type.title()} custom time range: {request.time_range} ({days} days)")
                 emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
             else:
-                # Fallback to auto mode
-                logger.warning(f"[Scan] Invalid time range '{request.time_range}' for {user_type}, falling back to auto mode")
-                if can_scan_past:
-                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=1)
-                else:
-                    emails = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=request.limit)
+                # Fallback to auto mode (48 hours)
+                logger.warning(f"[Scan] Invalid time range '{request.time_range}' for {user_type}, falling back to 48-hour scan")
+                emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
         
         if not emails:
-            logger.info(f"[Scan] No emails found for user {request.user_id} in {request.time_range} scan")
-            msg = "No new emails found matching your scan criteria."
-            if request.time_range == "auto":
-                msg = "Your inbox is clear! No unscanned emails found."
+            # No emails found in the specified time range
+            time_desc = f"{scan_days * 24} hours" if request.time_range == "auto" else request.time_range
+            logger.info(f"[Scan] No emails found for user {request.user_id} in {time_desc} scan")
+            msg = f"No emails found in your inbox from the last {time_desc}. Try extending the time range or check your Gmail connection."
             return ScanResponse(summaries=[], processed=0, skipped=0, total_found=0, message=msg)
         
         total_found = len(emails)
-        logger.info(f"[Scan] Found {total_found} emails to process for user {request.user_id}")
+        logger.info(f"[Scan] Found {total_found} emails to process for user {request.user_id} using Gemini API")
         
         # Process emails in parallel using ThreadPoolExecutor
         summaries = []
@@ -586,8 +577,9 @@ async def scan_emails(request: ScanRequest):
                                 is_read=summary_data.get('is_read', False)
                             ))
                             processed += 1
+                            logger.info(f"[Scan] Successfully analyzed and saved email: {email.get('subject', 'No Subject')[:50]}")
                         else:
-                            logger.info(f"[Scan] Skipped email {email.get('msg_id')} (already processed or save failed)")
+                            logger.info(f"[Scan] Skipped email {email.get('msg_id')} (already processed in database)")
                             skipped += 1
                     else:
                         logger.warning(f"[Scan] Processing failed for email {email.get('msg_id')}")
@@ -598,21 +590,27 @@ async def scan_emails(request: ScanRequest):
 
                     # Check if it's an API quota error
                     if "API quota exceeded" in error_msg or "api_error" in error_msg:
-                        logger.warning("Warning: AI API quota exceeded - some emails may not be properly analyzed")
+                        logger.warning("Warning: Gemini API quota exceeded - some emails may not be properly analyzed")
                         # Still count as processed but mark as having API issues
                         processed += 1
                     else:
                         skipped += 1
         
-        # Prepare summary message
-        message = f"Success! Processed {processed} new email(s)."
-        if processed == 0 and total_found > 0:
+        # Prepare detailed summary message
+        time_desc = f"{scan_days * 24} hours" if request.time_range == "auto" else request.time_range
+        message = f"✅ Scan complete! Found {total_found} email(s) in the last {time_desc}. "
+        
+        if processed > 0:
+            message += f"Analyzed {processed} new email(s) using Gemini AI and saved to your dashboard."
+            if skipped > 0:
+                message += f" ({skipped} already processed)"
+        elif processed == 0 and total_found > 0:
             if skipped == total_found:
-                message = "Your dashboard is already up to date! All found emails were previously analyzed."
+                message = f"📋 Dashboard up to date! All {total_found} email(s) from the last {time_desc} were already analyzed."
             else:
-                message = "Scan complete. No new relevant emails were found."
+                message = f"⚠️ Scan complete but no new emails were successfully analyzed. Please check your Gemini API key configuration."
         elif processed == 0:
-             message = "No emails found to analyze."
+             message = f"📭 No emails found in the last {time_desc} to analyze."
 
         return ScanResponse(
             summaries=summaries, 
