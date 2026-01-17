@@ -504,7 +504,13 @@ async def scan_emails(request: ScanRequest):
             logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
             
             try:
-                emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                
+                # Check for explicit API errors
+                if error_msg:
+                    logger.error(f"[Scan] Gmail API returned error: {error_msg}")
+                    raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
+
                 if updated_creds:
                     models.save_google_credentials(supabase, request.user_id, updated_creds)
                     logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
@@ -515,7 +521,13 @@ async def scan_emails(request: ScanRequest):
                 if len(emails) == 0:
                     logger.warning(f"[Scan] No emails found in {scan_days} days, trying extended range (30 days)")
                     scan_days = 30
-                    emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                    emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                    
+                    if error_msg:
+                        logger.error(f"[Scan] Gmail API fallback returned error: {error_msg}")
+                        # Don't raise yet, try ultimate fallback? No, if API is broken, it's broken.
+                        raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
+
                     if updated_creds:
                         models.save_google_credentials(supabase, request.user_id, updated_creds)
                     
@@ -571,7 +583,10 @@ async def scan_emails(request: ScanRequest):
 
                 logger.info(f"[Scan] {user_type.title()} custom time range: {request.time_range} ({days} days)")
                 try:
-                    emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
+                    emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
+                    if error_msg:
+                        raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
+
                     if updated_creds:
                         models.save_google_credentials(supabase, request.user_id, updated_creds)
                         logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
@@ -587,7 +602,10 @@ async def scan_emails(request: ScanRequest):
                 # Fallback to auto mode (48 hours)
                 logger.warning(f"[Scan] Invalid time range '{request.time_range}' for {user_type}, falling back to 48-hour scan")
                 try:
-                    emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
+                    emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
+                    if error_msg:
+                        raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
+
                     if updated_creds:
                         models.save_google_credentials(supabase, request.user_id, updated_creds)
                         

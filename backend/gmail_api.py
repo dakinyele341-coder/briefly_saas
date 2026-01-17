@@ -208,17 +208,22 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
                 email_list.append(email_data)
         
         logger.info(f"[Gmail API] Successfully fetched {len(email_list)} email(s) with full details")
-        logger.info(f"[Gmail API] Successfully fetched {len(email_list)} email(s) with full details")
-        return email_list, updated_creds_json
+        if len(email_list) == 0 and not error_occurred: 
+            # If no emails and no error, maybe legitimate empty inbox
+            pass
+            
+        return email_list, updated_creds_json, None
     except HttpError as error:
-        logger.error(f'Gmail API HttpError: Failed to fetch recent emails (error code: {error.resp.status if hasattr(error, "resp") else "unknown"})')
-        logger.error(f'Gmail API HttpError details: {str(error)}')
-        return [], updated_creds_json
+        error_msg = f'Gmail API HttpError: {error.resp.status if hasattr(error, "resp") else "unknown"} - {str(error)}'
+        logger.error(error_msg)
+        return [], updated_creds_json, error_msg
     except Exception as e:
-        logger.error(f'Gmail API Exception: Error fetching recent emails: {type(e).__name__}: {str(e)}')
         import traceback
-        logger.error(f'Traceback: {traceback.format_exc()}')
-        return [], updated_creds_json
+        trace = traceback.format_exc()
+        error_msg = f'Gmail API Error: {type(e).__name__}: {str(e)}'
+        logger.error(error_msg)
+        logger.error(trace)
+        return [], updated_creds_json, error_msg
 
 
 def normalize_date(date_str: str) -> str:
