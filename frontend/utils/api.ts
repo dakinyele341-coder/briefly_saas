@@ -158,7 +158,7 @@ export async function scanEmails(
   userId: string,
   keywords: string[],
   userRole: 'Investor' | 'Influencer' | 'Founder/Business Owner',
-  limit: number = 20,
+  limit: number = 10,
   timeRange: string = 'auto'
 ) {
   return apiFetch<{

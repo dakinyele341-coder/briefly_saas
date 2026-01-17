@@ -521,7 +521,8 @@ async def scan_emails(request: ScanRequest):
                 if len(emails) == 0:
                     logger.warning(f"[Scan] No emails found in {scan_days} days, trying extended range (30 days)")
                     scan_days = 30
-                    emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                    # Cap limit at 10 for extended search to prevent timeout
+                    emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=min(request.limit, 10), days=scan_days)
                     
                     if error_msg:
                         logger.error(f"[Scan] Gmail API fallback returned error: {error_msg}")
