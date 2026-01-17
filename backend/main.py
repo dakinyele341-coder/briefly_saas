@@ -504,7 +504,6 @@ async def scan_emails(request: ScanRequest):
             logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
             
             try:
-            try:
                 emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
                 if updated_creds:
                     models.save_google_credentials(supabase, request.user_id, updated_creds)
