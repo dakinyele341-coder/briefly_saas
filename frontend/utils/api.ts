@@ -176,7 +176,7 @@ export async function scanEmails(
       limit: limit,
       time_range: timeRange,
     }),
-  })
+  }, 300000) // Increase timeout to 5 minutes for scanning
 }
 
 /**
