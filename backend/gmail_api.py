@@ -121,6 +121,15 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
             logger.info(f"[Gmail API] Using local token.json for credentials")
             service = get_gmail_service()
 
+        # VERIFY IDENTITY: Log the email address we are scanning
+        try:
+            profile = service.users().getProfile(userId='me').execute()
+            email_address = profile.get('emailAddress', 'unknown')
+            logger.info(f"[Gmail API] AUTHENTICATED AS: {email_address}")
+            logger.info(f"[Gmail API] Profile stats: Messages={profile.get('messagesTotal')}, Threads={profile.get('threadsTotal')}")
+        except Exception as profile_error:
+            logger.warning(f"[Gmail API] Could not verify identity: {profile_error}")
+
         from datetime import datetime, timedelta
         
         # Build a more inclusive query
@@ -131,7 +140,7 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
             query = f'(in:inbox OR in:sent) after:{date_cutoff}'
             logger.info(f"[Gmail API] Fetching emails with query: '{query}', maxResults: {limit}")
         else:
-            # No date restriction - get most recent emails
+            # No date restriction - get most recent emails from Inbox/Sent
             query = 'in:inbox OR in:sent'
             logger.info(f"[Gmail API] Fetching recent emails without date filter, maxResults: {limit}")
         
@@ -145,29 +154,25 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
         logger.info(f"[Gmail API] Query returned {len(messages)} message(s)")
         
         if len(messages) == 0:
-            logger.warning(f"[Gmail API] No messages found! This could mean:")
-            if days > 0:
-                logger.warning(f"  1. No emails in inbox or sent from after {date_cutoff}")
-            else:
-                logger.warning(f"  1. No emails in inbox or sent at all")
-            logger.warning(f"  2. Gmail credentials might be expired or invalid")
-            logger.warning(f"  3. Gmail API scopes might be insufficient")
-            logger.warning(f"  4. Trying to search ALL mail (not just inbox/sent)...")
+            logger.warning(f"[Gmail API] No messages found using primary query!")
             
-            # FALLBACK: Try searching ALL mail without folder restriction
+            # FALLBACK 1: Try searching ALL mail (folders) if query had date
             if days > 0:
+                logger.info(f"[Gmail API] Attempting fallback: Search ALL mail after {date_cutoff}")
                 fallback_query = f'after:{date_cutoff}'
-            else:
-                fallback_query = ''  # All mail
-            
-            logger.info(f"[Gmail API] Attempting fallback search: '{fallback_query or 'all mail'}'")
-            results = service.users().messages().list(
-                userId='me',
-                q=fallback_query,
-                maxResults=limit
-            ).execute()
-            messages = results.get('messages', [])
-            logger.info(f"[Gmail API] Fallback search returned {len(messages)} message(s)")
+                results = service.users().messages().list(userId='me', q=fallback_query, maxResults=limit).execute()
+                messages = results.get('messages', [])
+                logger.info(f"[Gmail API] Date fallback returned {len(messages)} message(s)")
+
+            # FALLBACK 2: If still no emails, try fetching absolute latest emails from inbox without date
+            if len(messages) == 0 and days > 0:
+                 logger.info(f"[Gmail API] Attempting ultimate fallback: Latest inbox emails (no date limit)")
+                 fallback_query = 'in:inbox'
+                 results = service.users().messages().list(userId='me', q=fallback_query, maxResults=min(limit, 10)).execute()
+                 messages = results.get('messages', [])
+                 logger.info(f"[Gmail API] Ultimate fallback returned {len(messages)} message(s)")
+                 if len(messages) > 0:
+                     logger.warning("[Gmail API] Found emails only by ignoring date filter - these may be old!")
         
         email_list = []
         
