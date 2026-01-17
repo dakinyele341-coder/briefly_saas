@@ -504,20 +504,31 @@ async def scan_emails(request: ScanRequest):
             logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
             
             try:
-                emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+            try:
+                emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                if updated_creds:
+                    models.save_google_credentials(supabase, request.user_id, updated_creds)
+                    logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
+                
                 logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
                 
                 # FALLBACK 1: If no emails found in 7 days, try 30 days
                 if len(emails) == 0:
                     logger.warning(f"[Scan] No emails found in {scan_days} days, trying extended range (30 days)")
                     scan_days = 30
-                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                    emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                    if updated_creds:
+                        models.save_google_credentials(supabase, request.user_id, updated_creds)
+                    
                     logger.info(f"[Scan] Extended search returned {len(emails)} emails")
                     
                     # FALLBACK 2: If still no emails, try fetching ALL recent emails without time limit
                     if len(emails) == 0:
                         logger.warning(f"[Scan] No emails found in 30 days, fetching most recent emails without date filter")
-                        emails = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=min(request.limit, 10))
+                        emails, updated_creds = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=min(request.limit, 10))
+                        if updated_creds:
+                            models.save_google_credentials(supabase, request.user_id, updated_creds)
+                        
                         logger.info(f"[Scan] Unread emails search returned {len(emails)} emails")
                 
             except Exception as gmail_error:
@@ -561,7 +572,11 @@ async def scan_emails(request: ScanRequest):
 
                 logger.info(f"[Scan] {user_type.title()} custom time range: {request.time_range} ({days} days)")
                 try:
-                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
+                    emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=days)
+                    if updated_creds:
+                        models.save_google_credentials(supabase, request.user_id, updated_creds)
+                        logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
+                        
                     logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
                 except Exception as gmail_error:
                     logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
@@ -573,7 +588,10 @@ async def scan_emails(request: ScanRequest):
                 # Fallback to auto mode (48 hours)
                 logger.warning(f"[Scan] Invalid time range '{request.time_range}' for {user_type}, falling back to 48-hour scan")
                 try:
-                    emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
+                    emails, updated_creds = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=2)
+                    if updated_creds:
+                        models.save_google_credentials(supabase, request.user_id, updated_creds)
+                        
                     logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
                 except Exception as gmail_error:
                     logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")

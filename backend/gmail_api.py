@@ -27,18 +27,28 @@ __all__ = ['SCOPES', 'get_gmail_service_from_credentials', 'fetch_unread_emails'
 def get_gmail_service_from_credentials(credentials_json: str):
     """
     Create Gmail service from credentials JSON string.
-    This replaces the old file-based approach.
+    Returns tuple (service, updated_credentials_json)
+    If no refresh needed, updated_credentials_json is None.
     """
     try:
         # Parse the credentials JSON
         creds_dict = json.loads(credentials_json)
         creds = Credentials.from_authorized_user_info(creds_dict, SCOPES)
         
+        updated_creds_json = None
+        
         # Refresh if expired
         if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            print(f"Credentials expired, refreshing...")
+            try:
+                creds.refresh(Request())
+                updated_creds_json = creds.to_json()
+                print(f"Credentials refreshed successfully")
+            except Exception as refresh_error:
+                print(f"Failed to refresh credentials: {refresh_error}")
+                # Continue and let the API call fail if refresh failed
         
-        return build('gmail', 'v1', credentials=creds)
+        return build('gmail', 'v1', credentials=creds), updated_creds_json
     except Exception as e:
         print(f"Error creating Gmail service from credentials: {e}")
         raise
@@ -77,11 +87,17 @@ def get_gmail_service():
     wait=wait_exponential(multiplier=1, min=4, max=10),
     retry=retry_if_exception_type((HttpError, ConnectionError))
 )
-def fetch_unread_emails(credentials_json: Optional[str] = None, limit: int = 20) -> List[Dict]:
-    """Fetch unread emails from Gmail. Uses credentials_json if provided, otherwise falls back to file-based."""
+def fetch_unread_emails(credentials_json: Optional[str] = None, limit: int = 20) -> tuple[List[Dict], Optional[str]]:
+    """
+    Fetch unread emails from Gmail. Uses credentials_json if provided, otherwise falls back to file-based.
+    Returns (email_list, updated_credentials_json)
+    """
+    updated_creds_json = None
     try:
         if credentials_json:
-            service = get_gmail_service_from_credentials(credentials_json)
+            service, new_creds = get_gmail_service_from_credentials(credentials_json)
+            if new_creds:
+                updated_creds_json = new_creds
         else:
             service = get_gmail_service()
             
@@ -99,31 +115,40 @@ def fetch_unread_emails(credentials_json: Optional[str] = None, limit: int = 20)
             if email_data:
                 email_list.append(email_data)
         
-        return email_list
+        return email_list, updated_creds_json
     except HttpError as error:
         print(f'Gmail API error: Failed to fetch unread emails (error code: {error.resp.status if hasattr(error, "resp") else "unknown"})')
-        return []
+        return [], updated_creds_json
     except Exception as e:
         print(f'Error fetching unread emails: {e}')
-        return []
+        return [], updated_creds_json
 
 
-def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100, days: float = 7) -> List[Dict]:
-    """Fetch recent emails (read or unread) from the last N days (supports fractional days for hours)."""
+def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100, days: float = 7) -> tuple[List[Dict], Optional[str]]:
+    """
+    Fetch recent emails (read or unread) from the last N days (supports fractional days for hours).
+    Returns (email_list, updated_credentials_json)
+    """
     import logging
     logger = logging.getLogger("uvicorn")
+    
+    updated_creds_json = None
     
     try:
         if credentials_json:
             logger.info(f"[Gmail API] Creating service from credentials (credentials length: {len(credentials_json)} chars)")
-            service = get_gmail_service_from_credentials(credentials_json)
+            service, new_creds = get_gmail_service_from_credentials(credentials_json)
+            if new_creds:
+                updated_creds_json = new_creds
+                logger.info(f"[Gmail API] Credentials were refreshed during service creation")
         else:
             logger.info(f"[Gmail API] Using local token.json for credentials")
             service = get_gmail_service()
-
+            
         # VERIFY IDENTITY: Log the email address we are scanning
         try:
             profile = service.users().getProfile(userId='me').execute()
+            # ... rest of the function ...
             email_address = profile.get('emailAddress', 'unknown')
             logger.info(f"[Gmail API] AUTHENTICATED AS: {email_address}")
             logger.info(f"[Gmail API] Profile stats: Messages={profile.get('messagesTotal')}, Threads={profile.get('threadsTotal')}")
@@ -183,16 +208,17 @@ def fetch_recent_emails(credentials_json: Optional[str] = None, limit: int = 100
                 email_list.append(email_data)
         
         logger.info(f"[Gmail API] Successfully fetched {len(email_list)} email(s) with full details")
-        return email_list
+        logger.info(f"[Gmail API] Successfully fetched {len(email_list)} email(s) with full details")
+        return email_list, updated_creds_json
     except HttpError as error:
         logger.error(f'Gmail API HttpError: Failed to fetch recent emails (error code: {error.resp.status if hasattr(error, "resp") else "unknown"})')
         logger.error(f'Gmail API HttpError details: {str(error)}')
-        return []
+        return [], updated_creds_json
     except Exception as e:
         logger.error(f'Gmail API Exception: Error fetching recent emails: {type(e).__name__}: {str(e)}')
         import traceback
         logger.error(f'Traceback: {traceback.format_exc()}')
-        return []
+        return [], updated_creds_json
 
 
 def normalize_date(date_str: str) -> str:
