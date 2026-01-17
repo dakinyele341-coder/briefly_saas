@@ -429,7 +429,7 @@ def has_existing_summaries(user_id: str) -> bool:
 
 
 @app.post("/api/scan", response_model=ScanResponse)
-async def scan_emails(request: ScanRequest):
+def scan_emails(request: ScanRequest):
     """
     Scan and process emails for a user using Dual-Pipeline Classifier.
     All users scan recent emails from the last 24-48 hours by default.
@@ -1458,7 +1458,7 @@ async def get_unscanned_emails_count(user_id: str):
 
 
 @app.get("/api/check-credentials")
-async def check_credentials(user_id: str):
+def check_credentials(user_id: str):
     """Check if user has Gmail credentials stored and if they're valid."""
     try:
         credentials_json = models.get_google_credentials(supabase, user_id)
@@ -1493,7 +1493,7 @@ async def check_credentials(user_id: str):
 
 
 @app.post("/api/oauth/callback")
-async def oauth_callback(request: OAuthCallbackRequest):
+def oauth_callback(request: OAuthCallbackRequest):
     """
     Handle OAuth callback from Google.
     Exchange authorization code for credentials and save them.
