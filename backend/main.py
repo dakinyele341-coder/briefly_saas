@@ -81,6 +81,7 @@ class ScanRequest(BaseModel):
     user_role: UserRole  # Investor, Influencer, or Founder
     limit: Optional[int] = 20
     time_range: Optional[str] = "auto"  # "auto", "2hours", "1day", "3days", "7days", "30days"
+    reset_history: Optional[bool] = False
 
 
 class SaveCredentialsRequest(BaseModel):
@@ -497,10 +498,23 @@ def scan_emails(request: ScanRequest):
         # DEFAULT BEHAVIOR: All users scan recent emails to ensure all emails are analyzed
         # The msg_id idempotency check prevents duplicate processing while allowing rescans
         if request.time_range == "auto":
-            # All users scan recent emails - increased to 7 days for better coverage
-            # Many users don't receive emails daily, so 48 hours was too restrictive
-            scan_days = 7  # 7 days by default to ensure we catch emails
-            logger.info(f"[Scan] Performing automatic scan - analyzing emails from last {scan_days} days")
+            # REFINED SCAN LOGIC:
+            # 1. Rescan: If reset_history is True, clear old summaries first
+            if request.reset_history:
+                logger.info(f"[Scan] Rescan requested: Deleting previous summaries for user {request.user_id}")
+                try:
+                    supabase.table('summaries').delete().eq('user_id', request.user_id).execute()
+                except Exception as del_err:
+                    logger.error(f"[Scan] Failed to delete summaries for reset: {del_err}")
+
+            # 2. Determine window: New Users = 3 days, Existing Users = 1 day (latest)
+            if is_new:
+                scan_days = 3
+                logger.info(f"[Scan] New user detected: Scanning emails from last {scan_days} days")
+            else:
+                scan_days = 1
+                logger.info(f"[Scan] Existing user: Scanning absolute latest emails from last {scan_days} day")
+            
             logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
             
             try:
@@ -1562,8 +1576,20 @@ def oauth_callback(request: OAuthCallbackRequest):
             # Save credentials
             success = models.save_google_credentials(supabase, request.user_id, credentials_json)
             
+            # ALSO: Fetch and save user email to profile for admin checks
+            try:
+                user_email = gmail_api.get_user_email(credentials_json)
+                if user_email:
+                    logger.info(f"[OAuth] Fetched user email: {user_email}")
+                    supabase.table('profiles').update({
+                        'email': user_email,
+                        'updated_at': datetime.now().isoformat()
+                    }).eq('id', request.user_id).execute()
+            except Exception as e:
+                logger.error(f"[OAuth] Failed to fetch/save user email: {e}")
+
             if success:
-                logger.info(f"[OAuth] Successfully saved credentials for user {request.user_id} (Has Refresh Token: {bool(credentials.refresh_token)})")
+                logger.info(f"[OAuth] Successfully saved credentials and email for user {request.user_id}")
                 return {"message": "Credentials saved successfully", "credentials_json": credentials_json}
             else:
                 logger.error(f"[OAuth] Failed to save credentials for user {request.user_id}")

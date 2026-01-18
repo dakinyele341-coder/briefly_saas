@@ -159,7 +159,8 @@ export async function scanEmails(
   keywords: string[],
   userRole: 'Investor' | 'Influencer' | 'Founder/Business Owner',
   limit: number = 10,
-  timeRange: string = 'auto'
+  timeRange: string = 'auto',
+  resetHistory: boolean = false
 ) {
   return apiFetch<{
     summaries: any[]
@@ -175,6 +176,7 @@ export async function scanEmails(
       user_role: userRole,
       limit: limit,
       time_range: timeRange,
+      reset_history: resetHistory
     }),
   }, 300000) // Increase timeout to 5 minutes for scanning
 }

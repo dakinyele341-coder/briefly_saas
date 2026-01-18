@@ -329,7 +329,7 @@ function DashboardContent() {
     }
   }, [user, loadBriefs, loadStats])
 
-  const handleScan = useCallback(async () => {
+  const handleScan = useCallback(async (resetHistory: boolean = false) => {
     if (!user) return
 
     try {
@@ -358,7 +358,7 @@ function DashboardContent() {
       setOpportunities([])
       setOperations([])
 
-      const result = await scanEmails(user.id, keywords, role, 20, scanTimeRange)
+      const result = await scanEmails(user.id, keywords, role, 20, scanTimeRange, resetHistory)
 
       // Show detailed message from backend
       if (result.message) {
@@ -684,8 +684,20 @@ function DashboardContent() {
                     <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
+                  {subscriptionInfo?.subscription_status !== 'trial_expired' && (
+                    <Button
+                      onClick={() => handleScan(true)}
+                      variant="outline"
+                      disabled={refreshing}
+                      className="transition-all hover:bg-red-50 hover:text-red-600 border-dashed"
+                      title="Delete previous analysis and scan afresh"
+                    >
+                      <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                      <span className="text-xs">Reset Scan</span>
+                    </Button>
+                  )}
                   <Button
-                    onClick={handleScan}
+                    onClick={() => handleScan(false)}
                     variant="default"
                     disabled={refreshing || (subscriptionInfo?.subscription_status === 'trial_expired')}
                     className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''} ${subscriptionInfo?.subscription_status === 'trial_expired' ? 'opacity-50 cursor-not-allowed' : ''
@@ -696,6 +708,7 @@ function DashboardContent() {
                     {subscriptionInfo?.subscription_status === 'trial_expired' ? 'Upgrade Required' : 'Scan Emails'}
                   </Button>
                 </div>
+
               )}
             </div>
           </div>
@@ -814,10 +827,16 @@ function DashboardContent() {
                         <p className="text-gray-500 mb-6">
                           We haven't found any opportunities matching your professional thesis yet. Try scanning your inbox or updating your keywords!
                         </p>
-                        <Button onClick={handleScan} variant="outline" className="gap-2">
-                          <RefreshCw className="h-4 w-4" />
-                          Try Searching Now
-                        </Button>
+                        <div className="flex gap-2 justify-center">
+                          <Button onClick={() => handleScan(false)} variant="default" className="gap-2">
+                            <Mail className="h-4 w-4" />
+                            Scan Inbox
+                          </Button>
+                          <Button onClick={() => handleScan(true)} variant="outline" className="gap-2 border-dashed">
+                            <RefreshCw className="h-4 w-4" />
+                            Reset & Rescan
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
