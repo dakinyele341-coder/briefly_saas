@@ -108,7 +108,7 @@ function SettingsContent() {
   const login = useGoogleLogin({
     flow: 'auth-code',
     prompt: 'consent',
-    onSuccess: async (codeResponse) => {
+    onSuccess: async (codeResponse: any) => {
       if (!user) return
       try {
         const credentialsResponse = await fetch(`${API_URL}/api/oauth/callback`, {
@@ -269,8 +269,8 @@ function SettingsContent() {
                         variant={userRole === role ? 'default' : 'outline'}
                         onClick={() => setUserRole(role)}
                         className={`w-full h-12 transition-all ${userRole === role
-                            ? 'bg-gradient-to-r from-blue-600 to-yellow-500 hover:from-blue-700 hover:to-yellow-600 shadow-md'
-                            : 'hover:border-blue-300'
+                          ? 'bg-gradient-to-r from-blue-600 to-yellow-500 hover:from-blue-700 hover:to-yellow-600 shadow-md'
+                          : 'hover:border-blue-300'
                           }`}
                       >
                         {role}

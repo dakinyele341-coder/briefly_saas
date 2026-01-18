@@ -140,7 +140,7 @@ function DashboardContent() {
   const login = useGoogleLogin({
     flow: 'auth-code',
     prompt: 'consent', // Force consent to ensure refresh token is returned
-    onSuccess: async (codeResponse) => {
+    onSuccess: async (codeResponse: any) => {
       if (!user) {
         toast.error('User not authenticated')
         return
