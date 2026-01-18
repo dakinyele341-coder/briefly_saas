@@ -178,7 +178,7 @@ function DashboardContent() {
       toast.error('Gmail OAuth failed. Please try again.')
     },
     scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
-  })
+  } as any)
 
 
   // Auto-refresh every 2 minutes
