@@ -121,7 +121,9 @@ function SettingsContent() {
         })
 
         if (!credentialsResponse.ok) {
-          throw new Error('Failed to save credentials')
+          const errorData = await credentialsResponse.json().catch(() => ({}))
+          console.error('Frontend OAuth Callback Error:', errorData) // Log strictly for diagnosis
+          throw new Error(errorData.detail || 'Failed to save credentials')
         }
 
         const { credentials_json } = await credentialsResponse.json()
