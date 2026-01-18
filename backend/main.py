@@ -1498,54 +1498,63 @@ def oauth_callback(request: OAuthCallbackRequest):
     Handle OAuth callback from Google.
     Exchange authorization code for credentials and save them.
     Note: @react-oauth/google handles the OAuth flow on the frontend.
-    This endpoint receives the access token directly.
+    This endpoint receives the auth code.
     """
     try:
-        # For @react-oauth/google, the code is actually an access token
-        # We need to get the full token response from the frontend
-        # For now, we'll expect the frontend to send the full token response
-        
         # Get OAuth client credentials from environment
         client_id = os.getenv("GOOGLE_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
         
-        if not client_id:
+        if not client_id or not client_secret:
             raise HTTPException(
                 status_code=500,
-                detail="Google OAuth credentials not configured. Set GOOGLE_CLIENT_ID in environment."
+                detail="Google OAuth credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment."
             )
         
-        # The frontend should send the full token response from Google
-        # For @react-oauth/google, we need to handle it differently
-        # Let's create a simpler endpoint that accepts the token directly
-        
-        # For now, we'll use the code as a token (frontend should send token_response)
-        # In production, frontend should send the full token response from Google OAuth
-        
-        # Create credentials from token
-        # Note: This is a simplified version. In production, you'd want to:
-        # 1. Exchange the code for tokens server-side, OR
-        # 2. Have frontend send the full token response
-        
-        # Accept access token from frontend (from @react-oauth/google)
-        credentials_dict = {
-            'token': request.code,  # Access token from Google
-            'refresh_token': request.refresh_token,  # Refresh token if provided
-            'token_uri': 'https://oauth2.googleapis.com/token',
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'scopes': gmail_api.SCOPES,
-        }
-        
-        credentials_json = json.dumps(credentials_dict)
-        
-        # Save credentials
-        success = models.save_google_credentials(supabase, request.user_id, credentials_json)
-        
-        if success:
-            return {"message": "Credentials saved successfully", "credentials_json": credentials_json}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to save credentials")
+        # Initialize the Flow
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            },
+            scopes=gmail_api.SCOPES,
+            redirect_uri='postmessage'  # Specific for @react-oauth/google
+        )
+
+        try:
+            # Exchange the authorization code for credentials
+            flow.fetch_token(code=request.code)
+            credentials = flow.credentials
+            
+            # Create credentials dict
+            credentials_dict = {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token,
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'scopes': credentials.scopes,
+            }
+            
+            credentials_json = json.dumps(credentials_dict)
+            
+            # Save credentials
+            success = models.save_google_credentials(supabase, request.user_id, credentials_json)
+            
+            if success:
+                logger.info(f"[OAuth] Successfully saved credentials for user {request.user_id} (Has Refresh Token: {bool(credentials.refresh_token)})")
+                return {"message": "Credentials saved successfully", "credentials_json": credentials_json}
+            else:
+                logger.error(f"[OAuth] Failed to save credentials for user {request.user_id}")
+                raise HTTPException(status_code=500, detail="Failed to save credentials")
+                
+        except Exception as e:
+            logger.error(f"[OAuth] Error exchanging code for token: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to exchange authorization code: {str(e)}")
     
     except HTTPException:
         raise
