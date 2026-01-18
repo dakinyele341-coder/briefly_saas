@@ -13,8 +13,12 @@ import { UserRole } from '@/types'
 import { MenuBar } from '@/components/menu-bar'
 import { useGoogleLogin } from '@react-oauth/google'
 import { checkCredentials, saveCredentials, disconnectGmail } from '@/utils/api'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Get Google Client ID from environment
+const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '1088219665893-6o167j9df3uov60ckk1d054d7pfdt64e.apps.googleusercontent.com'
 
 const ROLE_EXAMPLES: Record<UserRole, string> = {
   Investor: 'e.g., B2B SaaS, Pre-Seed, Fintech, Africa, Marketplace',
@@ -28,7 +32,7 @@ const ROLE_INSTRUCTIONS: Record<UserRole, string> = {
   'Founder/Business Owner': 'Enter business opportunities, lead types, and partnership categories. The AI uses these to identify deals, partnerships, and growth opportunities.',
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -103,7 +107,6 @@ export default function SettingsPage() {
   // Google OAuth login
   const login = useGoogleLogin({
     flow: 'auth-code',
-    // @ts-ignore
     prompt: 'consent',
     onSuccess: async (codeResponse) => {
       if (!user) return
@@ -131,7 +134,7 @@ export default function SettingsPage() {
     },
     onError: () => toast.error('Gmail connection failed'),
     scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
-  })
+  } as any)
 
   const handleDisconnectGmail = async () => {
     if (!user) return
@@ -455,5 +458,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <SettingsContent />
+    </GoogleOAuthProvider>
   )
 }
