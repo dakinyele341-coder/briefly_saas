@@ -88,7 +88,7 @@ function SettingsContent() {
         // Check Gmail Status
         try {
           const status = await checkCredentials(currentUser.id)
-          setGmailConnected(status.connected && status.valid)
+          setGmailConnected(status.connected && (status.valid ?? false))
         } catch (error) {
           console.error('Error checking Gmail status:', error)
         }
