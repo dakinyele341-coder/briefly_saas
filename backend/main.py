@@ -1492,6 +1492,23 @@ def check_credentials(user_id: str):
         raise HTTPException(status_code=500, detail=f"Error checking credentials: {str(e)}")
 
 
+@app.delete("/api/disconnect-gmail")
+def disconnect_gmail(user_id: str):
+    """Disconnect Gmail account by removing credentials."""
+    try:
+        # Update profile to set google_credentials to NULL
+        result = supabase.table('profiles').update({
+            'google_credentials': None,
+            'updated_at': datetime.now().isoformat()
+        }).eq('id', user_id).execute()
+        
+        return {"message": "Gmail account disconnected successfully"}
+    except Exception as e:
+        logger.error(f"Error disconnecting Gmail: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to disconnect Gmail: {str(e)}")
+
+
+
 @app.post("/api/oauth/callback")
 def oauth_callback(request: OAuthCallbackRequest):
     """

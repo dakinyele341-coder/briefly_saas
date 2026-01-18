@@ -506,3 +506,12 @@ export async function getUnscannedEmailsCount(userId: string) {
     error?: string
   }>(`/api/unscanned-count?user_id=${userId}`)
 }
+
+/**
+ * Disconnect Gmail credentials
+ */
+export async function disconnectGmail(userId: string) {
+  return apiFetch<{ message: string }>(`/api/disconnect-gmail?user_id=${userId}`, {
+    method: 'DELETE',
+  })
+}
