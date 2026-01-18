@@ -16,8 +16,12 @@ from googleapiclient.errors import HttpError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Gmail API scopes
+# Gmail API scopes
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 
-          'https://www.googleapis.com/auth/gmail.send']
+          'https://www.googleapis.com/auth/gmail.send',
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'openid']
 
 # Export SCOPES for use in other modules
 __all__ = ['SCOPES', 'get_gmail_service_from_credentials', 'fetch_unread_emails', 
