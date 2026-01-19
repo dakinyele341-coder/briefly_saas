@@ -510,14 +510,14 @@ export default function Home() {
           <p>&copy; {new Date().getFullYear()} Briefly AI. All rights reserved.</p>
           <div className="mt-4 space-x-4">
             <a href="/terms" className="hover:text-white transition-colors">
-              Terms & Conditions
+              Terms of Service
             </a>
             <span className="text-zinc-600">|</span>
             <a href="/privacy" className="hover:text-white transition-colors">
               Privacy Policy
             </a>
             <span className="text-zinc-600">|</span>
-            <a href="mailto:creatorfuelteam@gmail.com" className="hover:text-white transition-colors">
+            <a href="mailto:akinyeleoluwayanmife@gmail.com" className="hover:text-white transition-colors">
               Contact Us
             </a>
           </div>
