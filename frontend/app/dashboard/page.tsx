@@ -25,7 +25,7 @@ import { TrialStatusBanner } from '@/components/trial-status-banner'
 
 // Import shared types
 import { Summary, UserRole } from '@/types'
-import { Loader2, Mail, AlertCircle, CheckCircle, Reply, RefreshCw, MailCheck, Settings, Sparkles, Briefcase, Trophy, Zap, Shield, CreditCard, MessageSquare, ExternalLink } from 'lucide-react'
+import { Loader2, Mail, AlertCircle, CheckCircle, Reply, RefreshCw, MailCheck, Settings, Sparkles, Briefcase, Trophy, Zap, Shield, CreditCard, MessageSquare, ExternalLink, Flame, TrendingUp, Minus, Circle, Star, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -39,6 +39,47 @@ const LANE_A_TITLES: Record<UserRole, string> = {
 }
 
 import { User } from '@supabase/supabase-js'
+
+const getImportanceBadge = (score: number = 3) => {
+  switch (score) {
+    case 5:
+      return (
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold uppercase tracking-wider animate-pulse border border-red-200">
+          <Flame className="h-3 w-3" />
+          Critical
+        </div>
+      )
+    case 4:
+      return (
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider border border-orange-200">
+          <Star className="h-3 w-3" />
+          Important
+        </div>
+      )
+    case 3:
+      return (
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-200">
+          <TrendingUp className="h-3 w-3" />
+          Standard
+        </div>
+      )
+    case 2:
+      return (
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-bold uppercase tracking-wider border border-gray-200">
+          <Minus className="h-3 w-3" />
+          Low Priority
+        </div>
+      )
+    case 1:
+    default:
+      return (
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 text-[10px] font-medium uppercase tracking-wider border border-gray-100">
+          <Info className="h-3 w-3" />
+          Noise
+        </div>
+      )
+  }
+}
 
 function DashboardContent() {
   const [user, setUser] = useState<User | null>(null)
@@ -332,6 +373,23 @@ function DashboardContent() {
   const handleScan = useCallback(async (resetHistory: boolean = false) => {
     if (!user) return
 
+    // SUBSCRIPTION & FREE SCAN GUARD:
+    // 1. Admin always has access
+    // 2. New users get one free 72h scan
+    // 3. Others must be active
+    const isUserAdmin = user?.email ? isAdminEmail(user.email) : false;
+    const hasCompletedFreeScan = (subscriptionInfo as any)?.has_completed_free_scan || false;
+    const isActiveSubscription = subscriptionInfo?.subscription_status === 'active' || subscriptionInfo?.subscription_status === 'trial';
+
+    if (!isUserAdmin && hasCompletedFreeScan && !isActiveSubscription) {
+      toast.error('Scan limit reached. Please upgrade to continue scanning.', {
+        icon: '🔒',
+        duration: 5000
+      });
+      router.push('/subscription');
+      return;
+    }
+
     try {
       const supabase = createClient()
       const { data: profile } = await supabase
@@ -354,11 +412,22 @@ function DashboardContent() {
 
       setRefreshing(true)
 
-      // Clear current dashboard emails for fresh display
+      // Clear current dashboard emails for fresh display - As requested: Latest results only
       setOpportunities([])
       setOperations([])
 
-      const result = await scanEmails(user.id, keywords, role, 20, scanTimeRange, resetHistory)
+      const result = await scanEmails(user.id, keywords, role, 500, 'auto', resetHistory)
+
+      // Refresh subscription info locally after scan to pick up status changes
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser()
+        if (currentUser) {
+          const sub = await getSubscriptionInfo(currentUser.id)
+          setSubscriptionInfo(sub)
+        }
+      } catch (subErr) {
+        console.error("Error refreshing subscription after scan:", subErr)
+      }
 
       // Show detailed message from backend
       if (result.message) {
@@ -366,17 +435,8 @@ function DashboardContent() {
           duration: 4000,
           icon: result.processed > 0 ? '✨' : '🎯',
         })
-      } else {
-        // Fallback to old message style if message field is missing
-        const timeRangeLabel = scanTimeRange === 'auto' ? 'auto-selected range' : scanTimeRange.replace('days', ' days').replace('day', ' day').replace('hours', ' hours')
-        toast.success(
-          `✨ Processed ${result.processed} new emails from ${timeRangeLabel}! ${result.skipped > 0 ? `(${result.skipped} already processed)` : ''}`,
-          {
-            duration: 3000,
-            icon: '🎯',
-          }
-        )
       }
+
       await loadBriefs()
       await loadStats()
       await checkUnscannedCount()
@@ -386,7 +446,7 @@ function DashboardContent() {
     } finally {
       setRefreshing(false)
     }
-  }, [user, scanTimeRange, router, loadBriefs, loadStats, checkUnscannedCount])
+  }, [user, loadBriefs, loadStats, checkUnscannedCount, subscriptionInfo, router])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -684,29 +744,41 @@ function DashboardContent() {
                     <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
-                  {subscriptionInfo?.subscription_status !== 'trial_expired' && (
+
+                  {/* SCAN & RESET BUTTONS - Header only. Logic: Admin/Standard/Pro or First Free Scan */}
+                  {(isAdmin || (subscriptionInfo?.subscription_status === 'active' || subscriptionInfo?.subscription_status === 'trial') || !((subscriptionInfo as any)?.has_completed_free_scan)) ? (
+                    <>
+                      <Button
+                        onClick={() => handleScan(true)}
+                        variant="outline"
+                        disabled={refreshing}
+                        className="transition-all hover:bg-red-50 hover:text-red-600 border-dashed"
+                        title="Delete previous analysis and scan afresh"
+                      >
+                        <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                        <span className="text-xs">Reset Scan</span>
+                      </Button>
+                      <Button
+                        onClick={() => handleScan(false)}
+                        variant="default"
+                        disabled={refreshing}
+                        className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''}`}
+                      >
+                        <Mail className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                        Scan Emails
+                      </Button>
+                    </>
+                  ) : (
+                    /* Free tier user post-free-scan -> Upgrade Required */
                     <Button
-                      onClick={() => handleScan(true)}
-                      variant="outline"
-                      disabled={refreshing}
-                      className="transition-all hover:bg-red-50 hover:text-red-600 border-dashed"
-                      title="Delete previous analysis and scan afresh"
+                      onClick={() => router.push('/subscription')}
+                      variant="default"
+                      className="transition-all shadow-md bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
                     >
-                      <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                      <span className="text-xs">Reset Scan</span>
+                      <Shield className="h-4 w-4 mr-2" />
+                      Upgrade Required
                     </Button>
                   )}
-                  <Button
-                    onClick={() => handleScan(false)}
-                    variant="default"
-                    disabled={refreshing || (subscriptionInfo?.subscription_status === 'trial_expired')}
-                    className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''} ${subscriptionInfo?.subscription_status === 'trial_expired' ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    title={subscriptionInfo?.subscription_status === 'trial_expired' ? 'Trial expired. Please upgrade to continue scanning.' : ''}
-                  >
-                    <Mail className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                    {subscriptionInfo?.subscription_status === 'trial_expired' ? 'Upgrade Required' : 'Scan Emails'}
-                  </Button>
                 </div>
 
               )}
@@ -824,19 +896,9 @@ function DashboardContent() {
                           <Sparkles className="h-10 w-10 text-yellow-500" />
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 mb-2">The Gold Mine is Empty</h3>
-                        <p className="text-gray-500 mb-6">
-                          We haven't found any opportunities matching your professional thesis yet. Try scanning your inbox or updating your keywords!
+                        <p className="text-gray-500">
+                          We haven't found any opportunities matching your professional thesis yet. Try scanning your inbox using the button at the top!
                         </p>
-                        <div className="flex gap-2 justify-center">
-                          <Button onClick={() => handleScan(false)} variant="default" className="gap-2">
-                            <Mail className="h-4 w-4" />
-                            Scan Inbox
-                          </Button>
-                          <Button onClick={() => handleScan(true)} variant="outline" className="gap-2 border-dashed">
-                            <RefreshCw className="h-4 w-4" />
-                            Reset & Rescan
-                          </Button>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -855,7 +917,10 @@ function DashboardContent() {
                             <div className="flex items-center gap-3 flex-1">
                               {getCategoryIcon(brief.category)}
                               <div className="flex-1">
-                                <CardTitle className="text-lg">{brief.subject}</CardTitle>
+                                <CardTitle className="text-lg flex items-center justify-between gap-2">
+                                  {brief.subject}
+                                  {getImportanceBadge(brief.importance_score)}
+                                </CardTitle>
                                 <CardDescription className="mt-1">
                                   From: {brief.sender} • {brief.date}
                                 </CardDescription>
@@ -1003,10 +1068,13 @@ function DashboardContent() {
                       >
                         <CardHeader>
                           <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
                               {getCategoryIcon(brief.category)}
-                              <div>
-                                <CardTitle className="text-lg">{brief.subject}</CardTitle>
+                              <div className="flex-1">
+                                <CardTitle className="text-lg flex items-center justify-between gap-2">
+                                  {brief.subject}
+                                  {getImportanceBadge(brief.importance_score)}
+                                </CardTitle>
                                 <CardDescription className="mt-1">
                                   From: {brief.sender} • {brief.date}
                                 </CardDescription>
@@ -1099,6 +1167,33 @@ function DashboardContent() {
       </div>
 
     </>
+  )
+}
+
+const getCategoryIcon = (category: string) => {
+  switch (category.toUpperCase()) {
+    case 'OPPORTUNITY':
+      return <Sparkles className="h-5 w-5 text-yellow-500" />
+    case 'CRITICAL':
+      return <Flame className="h-5 w-5 text-red-500" />
+    case 'HIGH':
+      return <Zap className="h-5 w-5 text-orange-500" />
+    case 'LOW':
+      return <Info className="h-5 w-5 text-gray-400" />
+    default:
+      return <Circle className="h-5 w-5 text-blue-500" />
+  }
+}
+
+const getCategoryBadge = (category: string) => {
+  const isOpp = category.toUpperCase() === 'OPPORTUNITY'
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-wider ${isOpp
+      ? 'bg-yellow-100 text-yellow-800'
+      : 'bg-blue-100 text-blue-800'
+      }`}>
+      {category}
+    </span>
   )
 }
 

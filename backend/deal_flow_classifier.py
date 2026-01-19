@@ -109,12 +109,21 @@ If LANE B (Operation):
 - Classify priority: "CRITICAL" (immediate action needed), "HIGH" (important), or "LOW" (noise/newsletter/general)
 - No thesis_match_score needed (set to null)
 
+STEP 3 - THE RANKER:
+Regardless of the lane, assign an "importance_score" from 1 to 5:
+- 5: Critical/Urgent/High-Value Opportunity (Needs immediate attention)
+- 4: Important/Relevant Opportunity (Should be addressed today)
+- 3: Standard/Routine (Normal business priority)
+- 2: Low Priority/FYI (Can be read later)
+- 1: Noise/Newsletter/Spam (Likely ignore)
+
 IMPORTANT: EVERY email must be classified. If an email does not clearly fit "Opportunity", it MUST be placed in Lane B (Operation). If you are unsure of the priority, default to "LOW".
 
 Output your response as a JSON object with this exact structure:
 {{
     "lane": "opportunity" | "operation",
     "category": "OPPORTUNITY" | "CRITICAL" | "HIGH" | "LOW",
+    "importance_score": <number 1-5>,
     "summary": "One sentence summary of the email",
     "thesis_match_score": <number 0-100> | null,
     "extracted_info": {{
@@ -163,7 +172,7 @@ Only return the JSON object, no additional text."""
         result = json.loads(response_text)
         
         # Log classification result
-        logger.info(f"[Classifier] Email processed -> Lane: {result.get('lane')}, Category: {result.get('category')}, Score: {result.get('thesis_match_score')}")
+        logger.info(f"[Classifier] Email processed -> Lane: {result.get('lane')}, Category: {result.get('category')}, Score: {result.get('thesis_match_score')}, Rank: {result.get('importance_score')}")
         
         # Validate and normalize result
         if result.get('lane') not in ['opportunity', 'operation']:
@@ -178,6 +187,16 @@ Only return the JSON object, no additional text."""
         if result.get('category') not in ['OPPORTUNITY', 'CRITICAL', 'HIGH', 'LOW']:
             result['category'] = 'LOW'
         
+        # Validate importance_score
+        importance = result.get('importance_score')
+        if importance is None or not isinstance(importance, (int, float)):
+            # Fallback based on category
+            cat = result.get('category', 'LOW')
+            cat_mapping = {'CRITICAL': 5, 'OPPORTUNITY': 4, 'HIGH': 4, 'LOW': 2}
+            result['importance_score'] = cat_mapping.get(cat, 3)
+        else:
+            result['importance_score'] = max(1, min(5, int(importance)))
+
         # Validate thesis_match_score
         if result['lane'] == 'opportunity':
             score = result.get('thesis_match_score')

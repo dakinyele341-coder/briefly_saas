@@ -305,7 +305,7 @@ def send_email(credentials_json: Optional[str], to: str, subject: str, body: str
     """Send an email via Gmail API."""
     try:
         if credentials_json:
-            service = get_gmail_service_from_credentials(credentials_json)
+            service, _ = get_gmail_service_from_credentials(credentials_json)
         else:
             service = get_gmail_service()
         
@@ -324,7 +324,7 @@ def get_user_email(credentials_json: Optional[str] = None) -> Optional[str]:
     """Get the authenticated user's email address."""
     try:
         if credentials_json:
-            service = get_gmail_service_from_credentials(credentials_json)
+            service, _ = get_gmail_service_from_credentials(credentials_json)
         else:
             service = get_gmail_service()
         profile = service.users().getProfile(userId='me').execute()

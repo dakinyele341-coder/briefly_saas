@@ -225,6 +225,7 @@ def get_subscription_info(supabase: Client, user_id: str) -> Optional[Dict]:
             'trial_expires_at': profile.get('trial_expires_at'),
             'payment_customer_id': profile.get('payment_customer_id'),
             'payment_subscription_id': profile.get('payment_subscription_id'),
+            'has_completed_free_scan': profile.get('has_completed_free_scan', False),
         }
     except Exception as e:
         print(f"Error getting subscription info: {e}")

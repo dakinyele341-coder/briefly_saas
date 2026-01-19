@@ -11,6 +11,7 @@ export interface Summary {
   thesis_match_score?: number;
   gmail_link?: string;
   is_read?: boolean;
+  importance_score?: number;
 }
 
 export type UserRole = 'Investor' | 'Influencer' | 'Founder/Business Owner'

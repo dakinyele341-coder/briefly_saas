@@ -161,6 +161,7 @@ def process_email(email: Dict, keywords: List[str], user_role: UserRole, user_id
             'summary': analysis['summary'],
             'category': analysis['category'],
             'lane': analysis['lane'],
+            'importance_score': analysis.get('importance_score', 3),
             'thesis_match_score': analysis.get('thesis_match_score'),
             'extracted_info': analysis['extracted_info'],
             'date': email['date'],
@@ -186,8 +187,9 @@ def save_summary_to_supabase(summary_data: Dict):
             return False  # Already exists, skip
         
         logger.info(f"[Supabase] Inserting new summary for msg_id: {summary_data['msg_id']}")
-        # Insert new summary with all new fields
-        result = supabase.table('summaries').insert({
+        
+        # Build the payload
+        payload = {
             'msg_id': summary_data['msg_id'],
             'user_id': summary_data['user_id'],
             'sender': summary_data['sender'],
@@ -195,14 +197,42 @@ def save_summary_to_supabase(summary_data: Dict):
             'summary': summary_data['summary'],
             'category': summary_data['category'],
             'lane': summary_data.get('lane', 'operation'),
+            'importance_score': summary_data.get('importance_score', 3),
             'thesis_match_score': summary_data.get('thesis_match_score'),
             'extracted_info': summary_data['extracted_info'],
             'date': summary_data['date'],
             'body_preview': summary_data.get('body_preview', ''),
-            'gmail_link': summary_data.get('gmail_link'),
             'is_read': summary_data.get('is_read', False),
             'created_at': datetime.now().isoformat(),
-        }).execute()
+        }
+
+        # Safety check: Only add gmail_link if it's provided and we want to try inserting it
+        # Note: If the column is missing in Supabase, this might still fail unless we handle it
+        if 'gmail_link' in summary_data and summary_data['gmail_link']:
+            payload['gmail_link'] = summary_data['gmail_link']
+
+        try:
+            result = supabase.table('summaries').insert(payload).execute()
+        except Exception as ins_err:
+            # If it fails, maybe gmail_link or importance_score is missing?
+            err_msg = str(ins_err).lower()
+            retry_payload = payload.copy()
+            should_retry = False
+            
+            if "gmail_link" in err_msg and "gmail_link" in retry_payload:
+                logger.warning("[Supabase] Failed to insert with gmail_link. Removing it...")
+                del retry_payload['gmail_link']
+                should_retry = True
+            
+            if "importance_score" in err_msg and "importance_score" in retry_payload:
+                logger.warning("[Supabase] Failed to insert with importance_score. Removing it...")
+                del retry_payload['importance_score']
+                should_retry = True
+            
+            if should_retry:
+                result = supabase.table('summaries').insert(retry_payload).execute()
+            else:
+                raise ins_err
         
         return True
     except Exception as e:
@@ -386,7 +416,12 @@ def check_user_access(user_id: str, user_email: Optional[str] = None) -> bool:
     if user_email and models.is_admin_email(user_email):
         return True  # Admin users always have access - no payment required
 
-    # Check subscription access for non-admin users
+    # Check if user has completed their one-time free 72h scan
+    profile = models.get_user_profile(supabase, user_id)
+    if profile and not profile.get('has_completed_free_scan', False):
+        return True # Allow access for the first scan
+
+    # Check subscription access for non-admin users who have used their free scan
     return models.has_subscription_access(supabase, user_id, user_email)
 
 
@@ -507,18 +542,26 @@ def scan_emails(request: ScanRequest):
                 except Exception as del_err:
                     logger.error(f"[Scan] Failed to delete summaries for reset: {del_err}")
 
-            # 2. Determine window: New Users = 3 days, Existing Users = 1 day (latest)
-            if is_new:
+            # Determine window:
+            # 1. New Scan: If hasn't completed free scan, do 72h (3 days)
+            # 2. Subsequent: Scanning latest (1 day)
+            has_completed_free_scan = user_profile.get('has_completed_free_scan', False) if user_profile else False
+            
+            if not has_completed_free_scan:
                 scan_days = 3
-                logger.info(f"[Scan] New user detected: Scanning emails from last {scan_days} days")
+                logger.info(f"[Scan] Initial free scan for user {request.user_id}: Scanning last {scan_days} days")
             else:
                 scan_days = 1
-                logger.info(f"[Scan] Existing user: Scanning absolute latest emails from last {scan_days} day")
+                logger.info(f"[Scan] Paid/Admin scan for user {request.user_id}: Scanning last {scan_days} day")
             
-            logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={request.limit})")
+            # REMOVE LIMIT: User wants all emails in the time range
+            # We'll use a high enough limit to practically be "all" but prevent extreme outliers from hanging
+            scan_limit = 500
+            
+            logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={scan_limit})")
             
             try:
-                emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=scan_limit, days=scan_days)
                 
                 # Check for explicit API errors
                 if error_msg:
@@ -531,34 +574,24 @@ def scan_emails(request: ScanRequest):
                 
                 logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
                 
-                # FALLBACK 1: If no emails found in 7 days, try 30 days
-                if len(emails) == 0:
-                    logger.warning(f"[Scan] No emails found in {scan_days} days, trying extended range (30 days)")
-                    scan_days = 30
-                    # Cap limit at 10 for extended search to prevent timeout
-                    emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=min(request.limit, 10), days=scan_days)
-                    
-                    if error_msg:
-                        logger.error(f"[Scan] Gmail API fallback returned error: {error_msg}")
-                        # Don't raise yet, try ultimate fallback? No, if API is broken, it's broken.
-                        raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
-
-                    if updated_creds:
-                        models.save_google_credentials(supabase, request.user_id, updated_creds)
-                    
-                    logger.info(f"[Scan] Extended search returned {len(emails)} emails")
-                    
-                    # FALLBACK 2: If still no emails, try fetching ALL recent emails without time limit
-                    if len(emails) == 0:
-                        logger.warning(f"[Scan] No emails found in 30 days, fetching most recent emails without date filter")
-                        emails, updated_creds = gmail_api.fetch_unread_emails(credentials_json=credentials_json, limit=min(request.limit, 10))
-                        if updated_creds:
-                            models.save_google_credentials(supabase, request.user_id, updated_creds)
-                        
-                        logger.info(f"[Scan] Unread emails search returned {len(emails)} emails")
+                # After a successful scan (even if 0 emails), if it was the free one, mark it as completed
+                if not has_completed_free_scan:
+                    try:
+                        supabase.table('profiles').update({'has_completed_free_scan': True}).eq('id', request.user_id).execute()
+                        logger.info(f"[Scan] Marked free scan as completed for user {request.user_id}")
+                    except Exception as upd_err:
+                        logger.error(f"[Scan] Failed to update free scan status: {upd_err}")
+                
+                # No more fallbacks - we want EXACTLY what's in the time range
                 
             except Exception as gmail_error:
                 logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
+                # If it's a 429, we should provide a better message
+                if "429" in str(gmail_error):
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Gmail API quota exceeded. Please try again in 1 hour."
+                    )
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to fetch emails from Gmail. Please check your Gmail connection and try reconnecting. Error: {str(gmail_error)[:100]}"
@@ -1096,6 +1129,12 @@ async def get_unscanned_emails(user_id: str):
     Returns: {count: number, preview: EmailPreview[]}
     """
     try:
+        # Get user profile to check free scan status
+        user_profile = models.get_user_profile(supabase, user_id)
+        if not user_profile or not user_profile.get('has_completed_free_scan', False):
+            # Only existing users (post-free-scan) see unscanned counts
+            return {"count": 0, "preview": []}
+
         # Get user's stored credentials
         credentials_json = models.get_google_credentials(supabase, user_id)
 
@@ -1103,7 +1142,10 @@ async def get_unscanned_emails(user_id: str):
             return {"count": 0, "preview": []}
 
         # Fetch recent unread emails (last 7 days to keep it manageable)
-        emails = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=50, days=7)
+        emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=50, days=7)
+
+        if updated_creds:
+             models.save_google_credentials(supabase, user_id, updated_creds)
 
         # Filter to only unread emails
         unread_emails = [email for email in emails if not email.get('is_read', False)]
@@ -1440,6 +1482,12 @@ async def get_unscanned_emails_count(user_id: str):
     This helps show notifications when count gets high.
     """
     try:
+        # Get user profile to check free scan status
+        user_profile = models.get_user_profile(supabase, user_id)
+        if not user_profile or not user_profile.get('has_completed_free_scan', False):
+            # Only existing users (post-free-scan) see unscanned counts
+            return {"count": 0, "threshold_reached": False, "urgent": False}
+
         # Get user's stored credentials
         credentials_json = models.get_google_credentials(supabase, user_id)
 
@@ -1447,7 +1495,10 @@ async def get_unscanned_emails_count(user_id: str):
             return {"count": 0, "error": "No Gmail credentials found"}
 
         # Get total unread emails count
-        service = gmail_api.get_gmail_service_from_credentials(credentials_json)
+        service, updated_creds = gmail_api.get_gmail_service_from_credentials(credentials_json)
+
+        if updated_creds:
+             models.save_google_credentials(supabase, user_id, updated_creds)
 
         # Query for unread emails in inbox
         query = 'is:unread in:inbox'
