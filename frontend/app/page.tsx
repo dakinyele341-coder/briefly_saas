@@ -431,10 +431,10 @@ export default function Home() {
                     <ShieldCheck className="h-5 w-5 mr-3 text-green-400" /> Everything in Standard, plus:
                   </p>
                   <p className="flex items-center">
-                    <FileText className="h-5 w-5 mr-3 text-purple-400" /> Document / Pitch Deck Analysis
+                    <FileText className="h-5 w-5 mr-3 text-purple-400" /> Pitch Deck / Document Analysis
                   </p>
                   <p className="flex items-center">
-                    <TrendingUp className="h-5 w-5 mr-3 text-purple-400" /> Thesis Scoring
+                    <TrendingUp className="h-5 w-5 mr-3 text-purple-400" /> Thesis-Match Scoring
                   </p>
                 </CardContent>
               </div>

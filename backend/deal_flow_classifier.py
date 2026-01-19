@@ -90,19 +90,17 @@ Analyze the complete email content including any mentioned or attached documents
 Email Content:
 {email_content}
 
-STEP 1 - THE SORTER: Classify this email into ONE of two lanes:
+STEP 1 - THE GATEKEEPER (LANE DETERMINATION):
+You MUST decide if the email belongs in LANE A (Opportunity) or LANE B (Operation).
+- LANE A (Opportunity): Direct deals, partnership inquiries, sponsorship offers, investment opportunities, pitch decks, or high-value collaborations.
+- LANE B (Operation): Administrative emails, newsletters, non-urgent updates, general information, or routine business operations.
 
-LANE A (The Opportunity) - {context['lane_a_types']}
-LANE B (The Operation) - {context['lane_b_types']}
-
-CRITICAL CONSTRAINT: If this is a Newsletter (even if it contains keywords), it MUST go to Lane B as "LOW" priority.
+IMPORTANT: You are the final judge of which lane an email belongs to. If an email represents a potential "Money-Making" or "Strategic" opportunity, place it in LANE A. If it is purely operational or low-priority "Noise", place it in LANE B.
 
 STEP 2 - THE SCORER:
-
 If LANE A (Opportunity):
-- Calculate thesis_match_score (0-100) based on how well the email matches the keywords.
+- Calculate thesis_match_score (0-100) based on how well the email matches the user's keywords and role.
 - Higher score = better match (e.g., Investor with "B2B SaaS" keywords receiving "SaaS Pitch Deck" = 95)
-- Lower score = still an opportunity but weaker match (e.g., Influencer with "Beauty" keywords receiving "Gymshark Sponsorship" = 40)
 - Category should be "OPPORTUNITY"
 
 If LANE B (Operation):
@@ -111,20 +109,19 @@ If LANE B (Operation):
 
 STEP 3 - THE RANKER:
 Regardless of the lane, assign an "importance_score" from 1 to 5:
-- 5: Critical/Urgent/High-Value Opportunity (Needs immediate attention)
-- 4: Important/Relevant Opportunity (Should be addressed today)
+- 5: Critical/Urgent/High-Value (Needs attention within the hour)
+- 4: Important/Relevant (Should be addressed today)
 - 3: Standard/Routine (Normal business priority)
 - 2: Low Priority/FYI (Can be read later)
 - 1: Noise/Newsletter/Spam (Likely ignore)
 
-IMPORTANT: EVERY email must be classified. If an email does not clearly fit "Opportunity", it MUST be placed in Lane B (Operation). If you are unsure of the priority, default to "LOW".
-
+OUTPUT:
 Output your response as a JSON object with this exact structure:
 {{
     "lane": "opportunity" | "operation",
     "category": "OPPORTUNITY" | "CRITICAL" | "HIGH" | "LOW",
     "importance_score": <number 1-5>,
-    "summary": "One sentence summary of the email",
+    "summary": "One sentence summary focusing on the core value or action items",
     "thesis_match_score": <number 0-100> | null,
     "extracted_info": {{
         "money": "Any monetary amounts mentioned",

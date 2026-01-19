@@ -167,8 +167,8 @@ export default function PricingPage() {
               <Button
                 onClick={() => !isAdmin && handleSubscribe('standard')}
                 className={`w-full font-semibold py-6 text-lg shadow-lg transition-all duration-300 ${isAdmin
-                    ? 'bg-blue-600/50 cursor-default opacity-80'
-                    : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:shadow-blue-500/50'
+                  ? 'bg-blue-600/50 cursor-default opacity-80'
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:shadow-blue-500/50'
                   }`}
                 size="lg"
               >
@@ -213,7 +213,7 @@ export default function PricingPage() {
                   &ldquo;Your AI Associate.&rdquo;
                 </h3>
                 <p className="text-gray-200 leading-relaxed">
-                  Filter noise, find unicorns with document and pitch deck analysis. We read every pitch deck so you don't have to.
+                  Filter noise, find unicorns with professional <span className="text-white font-bold">pitch deck and document analysis</span>. We read every document so you don&apos;t have to.
                 </p>
               </div>
 
@@ -253,8 +253,8 @@ export default function PricingPage() {
               <Button
                 onClick={() => !isAdmin && handleSubscribe('pro')}
                 className={`w-full font-semibold py-6 text-lg shadow-lg transition-all duration-300 ${isAdmin
-                    ? 'bg-purple-600/50 cursor-default opacity-80'
-                    : 'bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 hover:from-purple-600 hover:via-pink-600 hover:to-purple-600 text-white hover:shadow-purple-500/50'
+                  ? 'bg-purple-600/50 cursor-default opacity-80'
+                  : 'bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 hover:from-purple-600 hover:via-pink-600 hover:to-purple-600 text-white hover:shadow-purple-500/50'
                   }`}
                 size="lg"
               >

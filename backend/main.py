@@ -732,20 +732,20 @@ def scan_emails(request: ScanRequest):
         
         # Prepare detailed summary message
         # Use actual scan_days which may have been adjusted by fallback logic
-        time_desc = f"{scan_days} days" if request.time_range == "auto" else request.time_range
-        message = f"✅ Scan complete! Found {total_found} email(s) in the last {time_desc}. "
+        time_desc = f"{scan_days} day(s)" if request.time_range == "auto" else request.time_range
+        message = f"✅ Scan complete! Found {total_found} emails in the last {time_desc}. "
         
         if processed > 0:
-            message += f"Analyzed {processed} new email(s) using Gemini AI and saved to your dashboard."
+            message += f"Successfully analyzed {processed} emails using AI and updated your dashboard."
             if skipped > 0:
-                message += f" ({skipped} already processed)"
+                message += f" ({skipped} were already scanned)."
         elif processed == 0 and total_found > 0:
             if skipped == total_found:
-                message = f"📋 Dashboard up to date! All {total_found} email(s) from the last {time_desc} were already analyzed."
+                message = f"📋 Perfect! All {total_found} emails from the last {time_desc} were already summarized and are up-to-date."
             else:
-                message = f"⚠️ Scan complete but no new emails were successfully analyzed. Please check your Gemini API key configuration."
+                message = f"⚠️ Scan finished but no new emails could be analyzed. Please check your Gemini AI configuration."
         elif processed == 0:
-             message = f"📭 No emails found in the last {time_desc} to analyze."
+             message = f"📭 Your inbox is clear! No emails found in the last {time_desc} to analyze."
 
         return ScanResponse(
             summaries=summaries, 
@@ -1141,8 +1141,8 @@ async def get_unscanned_emails(user_id: str):
         if not credentials_json:
             return {"count": 0, "preview": []}
 
-        # Fetch recent unread emails (last 7 days to keep it manageable)
-        emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=50, days=7)
+        # Fetch recent unread emails (last 24 hours only for unscanned alerts to keep it recent)
+        emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=50, days=1)
 
         if updated_creds:
              models.save_google_credentials(supabase, user_id, updated_creds)
@@ -1500,12 +1500,12 @@ async def get_unscanned_emails_count(user_id: str):
         if updated_creds:
              models.save_google_credentials(supabase, user_id, updated_creds)
 
-        # Query for unread emails in inbox
-        query = 'is:unread in:inbox'
+        # Query for unread emails in inbox from the last 24 hours to keep notifications fresh
+        query = 'is:unread in:inbox newer_than:1d'
         result = service.users().messages().list(
             userId='me',
             q=query,
-            maxResults=500  # Get a good sample
+            maxResults=500
         ).execute()
 
         messages = result.get('messages', [])
