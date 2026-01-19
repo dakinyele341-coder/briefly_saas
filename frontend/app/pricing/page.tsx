@@ -117,7 +117,7 @@ export default function PricingPage() {
                 <Sparkles className="h-6 w-6 text-yellow-400" />
               </div>
               <CardDescription className="text-gray-300 text-lg">
-                For Influencers, Founders/Business Owners, & Agency Owners
+                For Agency Owners, Founders/Business Owners, & Influencers
               </CardDescription>
               <div className="pt-4">
                 <div className="flex items-baseline gap-2">

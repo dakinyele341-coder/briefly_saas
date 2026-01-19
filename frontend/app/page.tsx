@@ -123,7 +123,7 @@ export default function Home() {
           Turn Inbox Chaos into Clarity.
         </h1>
         <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-          AI-powered email analysis for Investors, Influencers, and Founders. Never miss a
+          AI-powered email analysis for Investors, Agency Owners, and Founders. Never miss a
           sponsorship, deal, or lead again.
         </p>
 
@@ -241,10 +241,10 @@ export default function Home() {
             </Card>
             <Card className="bg-zinc-800 border-zinc-700 text-white text-center p-6">
               <CardHeader>
-                <h3 className="text-2xl font-semibold mb-2">Influencers</h3>
+                <h3 className="text-2xl font-semibold mb-2">Agency Owners</h3>
               </CardHeader>
               <CardContent>
-                <p className="text-zinc-300">&ldquo;Spot brand deals instantly amongst the fan mail and promotional clutter.&rdquo;</p>
+                <p className="text-zinc-300">&ldquo;Spot high-value service leads and brand partnerships instantly among the noise.&rdquo;</p>
               </CardContent>
             </Card>
             <Card className="bg-zinc-800 border-zinc-700 text-white text-center p-6">
@@ -282,7 +282,7 @@ export default function Home() {
                   </div>
                   <div className="ml-3">
                     <p className="font-semibold">Jason D.</p>
-                    <p className="text-sm text-zinc-500">Tech Influencer</p>
+                    <p className="text-sm text-zinc-500">Agency Owner</p>
                   </div>
                 </div>
               </CardContent>

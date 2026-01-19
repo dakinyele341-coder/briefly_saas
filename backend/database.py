@@ -280,6 +280,7 @@ def calculate_mrr() -> float:
         "Investor Plan ($49/mo)": 49.0,
         # Legacy support for old role names
         "Investor ($49)": 49.0,
+        "Agency Owner ($29)": 29.0,
         "Influencer ($29)": 29.0,
         "Business Owner ($29)": 29.0
     }

@@ -22,13 +22,13 @@ const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '108821966589
 
 const ROLE_EXAMPLES: Record<UserRole, string> = {
   Investor: 'e.g., B2B SaaS, Pre-Seed, Fintech, Africa, Marketplace',
-  Influencer: 'e.g., Skincare, Tech Review, Paid Collab, Ambassador, UGC',
+  'Agency Owner': 'e.g., Client Retainer, Service Lead, Brand Pitch, Outreach, Project Inquiry',
   'Founder/Business Owner': 'e.g., B2B Lead, Wholesale, Bulk Order, Hiring, Acquisition',
 }
 
 const ROLE_INSTRUCTIONS: Record<UserRole, string> = {
   Investor: 'Enter investment focus areas, industries, stages, and geographies. The AI uses these to hunt for pitch decks and funding opportunities.',
-  Influencer: 'Enter brand categories, collaboration types, and content niches. The AI uses these to find sponsorship and partnership opportunities.',
+  'Agency Owner': 'Enter your agency niche, service types, and ideal client profile. The AI uses these to identify high-value service leads and partnership inquiries.',
   'Founder/Business Owner': 'Enter business opportunities, lead types, and partnership categories. The AI uses these to identify deals, partnerships, and growth opportunities.',
 }
 
@@ -265,7 +265,7 @@ function SettingsContent() {
                     Your Role
                   </label>
                   <div className="grid grid-cols-3 gap-3">
-                    {(['Investor', 'Influencer', 'Founder/Business Owner'] as UserRole[]).map((role) => (
+                    {(['Investor', 'Agency Owner', 'Founder/Business Owner'] as UserRole[]).map((role) => (
                       <Button
                         key={role}
                         variant={userRole === role ? 'default' : 'outline'}

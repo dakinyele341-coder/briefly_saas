@@ -14,4 +14,4 @@ export interface Summary {
   importance_score?: number;
 }
 
-export type UserRole = 'Investor' | 'Influencer' | 'Founder/Business Owner'
+export type UserRole = 'Investor' | 'Agency Owner' | 'Founder/Business Owner'

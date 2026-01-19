@@ -15,7 +15,7 @@ logger = logging.getLogger("uvicorn")
 
 class UserRole(str, Enum):
     INVESTOR = "Investor"
-    INFLUENCER = "Influencer"
+    AGENCY_OWNER = "Agency Owner"
     FOUNDER = "Founder"
 
 
@@ -47,7 +47,7 @@ def classify_email_dual_pipeline(
         # Convert string to enum
         role_mapping = {
             "Investor": UserRole.INVESTOR,
-            "Influencer": UserRole.INFLUENCER,
+            "Agency Owner": UserRole.AGENCY_OWNER,
             "Founder": UserRole.FOUNDER,
             "Founder/Business Owner": UserRole.FOUNDER
         }
@@ -63,9 +63,9 @@ def classify_email_dual_pipeline(
             "lane_a_types": "Pitch Deck, Investment Opportunity, Startup Seeking Funding, Seed/Series Round",
             "lane_b_types": "Client Fire, Team Update, Invoice, Newsletter, Legal Notice, Tax Document"
         },
-        UserRole.INFLUENCER: {
-            "lane_a_types": "Brand Deal, Sponsorship Offer, Paid Collaboration, Ambassador Program, UGC Opportunity",
-            "lane_b_types": "Client Fire, Team Update, Invoice, Newsletter, Fan Mail, General Inquiry"
+        UserRole.AGENCY_OWNER: {
+            "lane_a_types": "Client Inquiry, Retainer Pitch, Brand Deal, Partnership Offer, Sponsorship Opportunity, Service Lead",
+            "lane_b_types": "Client Fire, Team Update, Invoice, Newsletter, Support Request, General Inquiry"
         },
         UserRole.FOUNDER: {
             "lane_a_types": "Partnership Offer, B2B Lead, Wholesale Order, Bulk Purchase, Acquisition Interest, Hiring Inquiry",

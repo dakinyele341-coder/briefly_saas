@@ -71,14 +71,14 @@ scheduler.start()
 # Request/Response models
 class UserRole(str, Enum):
     INVESTOR = "Investor"
-    INFLUENCER = "Influencer"
+    AGENCY_OWNER = "Agency Owner"
     FOUNDER = "Founder/Business Owner"
 
 
 class ScanRequest(BaseModel):
     user_id: str
     keywords: List[str]  # List of keywords/tags
-    user_role: UserRole  # Investor, Influencer, or Founder
+    user_role: UserRole  # Investor, Agency Owner, or Founder
     limit: Optional[int] = 20
     time_range: Optional[str] = "auto"  # "auto", "2hours", "1day", "3days", "7days", "30days"
     reset_history: Optional[bool] = False
