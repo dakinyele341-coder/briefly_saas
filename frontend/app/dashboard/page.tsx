@@ -1187,7 +1187,7 @@ function DashboardContent() {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : activeTab === 'operations' ? (
                 /* The Work (Lane B) */
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1288,32 +1288,6 @@ function DashboardContent() {
                           </div>
                         </div>
                       ))}
-                      {/* Pagination Controls */}
-                      {operations.length > 0 && (
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="text-sm text-gray-500">
-                            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalOperations)} of {totalOperations}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setPage(p => Math.max(1, p - 1))}
-                              disabled={page === 1}
-                            >
-                              Previous
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setPage(p => p + 1)}
-                              disabled={page * pageSize >= totalOperations}
-                            >
-                              Next
-                            </Button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1455,7 +1429,7 @@ function DashboardContent() {
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
           </>
         )}
