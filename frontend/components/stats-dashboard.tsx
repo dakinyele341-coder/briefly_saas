@@ -18,9 +18,17 @@ interface StatsDashboardProps {
   onViewOperations?: () => void
   onViewUnreadOpportunities?: () => void
   onViewUnreadOperations?: () => void
+  activeTab?: 'opportunities' | 'operations'
 }
 
-export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, onViewUnreadOpportunities, onViewUnreadOperations }: StatsDashboardProps) {
+export function StatsDashboard({
+  stats,
+  onViewOpportunities,
+  onViewOperations,
+  onViewUnreadOpportunities,
+  onViewUnreadOperations,
+  activeTab
+}: StatsDashboardProps) {
   if (!stats) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -54,7 +62,11 @@ export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, o
       </Card>
 
       <Card
-        className="hover:shadow-md transition-shadow duration-200 border-yellow-200 bg-gradient-to-br from-yellow-50 to-white"
+        onClick={onViewOpportunities}
+        className={cn(
+          "cursor-pointer hover:shadow-lg transition-all duration-200 border-yellow-200 bg-gradient-to-br from-yellow-50 to-white hover:scale-[1.02]",
+          activeTab === 'opportunities' && "ring-2 ring-yellow-400 shadow-md"
+        )}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
@@ -76,7 +88,11 @@ export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, o
       </Card>
 
       <Card
-        className="hover:shadow-md transition-shadow duration-200"
+        onClick={onViewOperations}
+        className={cn(
+          "cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]",
+          activeTab === 'operations' && "ring-2 ring-blue-400 shadow-md"
+        )}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">

@@ -6,7 +6,9 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -92,6 +94,7 @@ function DashboardContent() {
   const [checkingConnection, setCheckingConnection] = useState(true)
   const [draftLoading, setDraftLoading] = useState<string | null>(null)
   const [revealing, setRevealing] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'opportunities' | 'operations'>('opportunities')
   const [draftDialogOpen, setDraftDialogOpen] = useState(false)
   const [currentDraft, setCurrentDraft] = useState<string>('')
   const [currentDraftSubject, setCurrentDraftSubject] = useState<string>('')
@@ -840,6 +843,9 @@ function DashboardContent() {
             {/* Stats Dashboard */}
             <StatsDashboard
               stats={stats}
+              onViewOpportunities={() => setActiveTab('opportunities')}
+              onViewOperations={() => setActiveTab('operations')}
+              activeTab={activeTab}
             />
 
             {/* Achievements */}
@@ -861,99 +867,251 @@ function DashboardContent() {
               </Card>
             )}
 
-            <div className="grid grid-cols-2 gap-6">
-              {/* Left Column - The Gold Mine (Lane A) */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-yellow-500" />
-                    {LANE_A_TITLES[userRole]}
-                  </h2>
-                  <span className="text-sm text-gray-500">{opportunities.length} opportunities</span>
-                </div>
+            <div className="w-full">
+              {/* Tabs Navigation */}
+              <div className="flex border-b border-gray-200 mb-6 bg-white rounded-t-lg overflow-hidden">
+                <button
+                  onClick={() => setActiveTab('opportunities')}
+                  className={cn(
+                    "flex-1 py-4 px-6 text-sm font-bold transition-all flex items-center justify-center gap-2",
+                    activeTab === 'opportunities'
+                      ? "bg-yellow-50 text-yellow-700 border-b-2 border-yellow-500"
+                      : "text-gray-500 hover:bg-gray-50"
+                  )}
+                >
+                  <Sparkles className={cn("h-4 w-4", activeTab === 'opportunities' ? "text-yellow-500" : "text-gray-400")} />
+                  {LANE_A_TITLES[userRole]}
+                  <Badge variant="outline" className={cn("ml-2", activeTab === 'opportunities' ? "bg-yellow-100 text-yellow-700" : "")}>
+                    {opportunities.length}
+                  </Badge>
+                </button>
+                <button
+                  onClick={() => setActiveTab('operations')}
+                  className={cn(
+                    "flex-1 py-4 px-6 text-sm font-bold transition-all flex items-center justify-center gap-2",
+                    activeTab === 'operations'
+                      ? "bg-blue-50 text-blue-700 border-b-2 border-blue-500"
+                      : "text-gray-500 hover:bg-gray-50"
+                  )}
+                >
+                  <Briefcase className={cn("h-4 w-4", activeTab === 'operations' ? "text-blue-500" : "text-gray-400")} />
+                  Operations
+                  <Badge variant="outline" className={cn("ml-2", activeTab === 'operations' ? "bg-blue-100 text-blue-700" : "")}>
+                    {operations.length}
+                  </Badge>
+                </button>
+              </div>
 
-                {opportunities.length === 0 ? (
-                  <Card className="border-dashed border-2 bg-gray-50/50">
-                    <CardContent className="pt-16 pb-16">
-                      <div className="text-center max-w-sm mx-auto">
-                        <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <Sparkles className="h-10 w-10 text-yellow-500" />
+              {/* Lane Content */}
+              {activeTab === 'opportunities' ? (
+                /* The Gold Mine (Lane A) */
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-yellow-500" />
+                      {LANE_A_TITLES[userRole]}
+                    </h2>
+                    <span className="text-sm text-gray-500">{opportunities.length} opportunities</span>
+                  </div>
+
+                  {opportunities.length === 0 ? (
+                    <Card className="border-dashed border-2 bg-gray-50/50">
+                      <CardContent className="pt-16 pb-16">
+                        <div className="text-center max-w-sm mx-auto">
+                          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Sparkles className="h-10 w-10 text-yellow-500" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">The Gold Mine is Empty</h3>
+                          <p className="text-gray-500">
+                            We haven't found any opportunities matching your professional thesis yet. Try scanning your inbox using the button at the top!
+                          </p>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">The Gold Mine is Empty</h3>
-                        <p className="text-gray-500">
-                          We haven't found any opportunities matching your professional thesis yet. Try scanning your inbox using the button at the top!
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    {opportunities.map((brief, index) => (
-                      <Card
-                        key={brief.id || index}
-                        className="relative hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-yellow-400"
-                      >
-                        {!brief.is_read && (
-                          <div className="absolute top-2 right-2 h-3 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
-                        )}
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              {getCategoryIcon(brief.category)}
-                              <div className="flex-1">
-                                <CardTitle className="text-lg flex items-center justify-between gap-2">
-                                  {brief.subject}
-                                  {getImportanceBadge(brief.importance_score)}
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                  From: {brief.sender} • {brief.date}
-                                </CardDescription>
-                              </div>
-                            </div>
-                            {getCategoryBadge(brief.category)}
-                          </div>
-                          {brief.thesis_match_score !== undefined && (
-                            <div className="mt-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500">Match Score:</span>
-                                <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className="bg-green-500 h-2 rounded-full"
-                                    style={{ width: `${brief.thesis_match_score}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs font-semibold">{brief.thesis_match_score}%</span>
-                              </div>
-                            </div>
-                          )}
-                        </CardHeader>
-                        <CardContent>
-                          <div className={brief.is_read ? 'revealed' : 'blur-sm pointer-events-none select-none'}>
-                            <p className="text-gray-700 mb-4">{brief.summary}</p>
-                          </div>
-
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {opportunities.map((brief, index) => (
+                        <Card
+                          key={brief.id || index}
+                          className="relative hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-yellow-400"
+                        >
                           {!brief.is_read && (
-                            <Button
-                              onClick={() => handleRevealOpportunity(brief)}
-                              disabled={revealing === brief.id}
-                              variant="default"
-                              className="w-full mb-4"
-                            >
-                              {revealing === brief.id ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Revealing...
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="h-4 w-4 mr-2" />
-                                  Reveal Opportunity
-                                </>
-                              )}
-                            </Button>
+                            <div className="absolute top-2 right-2 h-3 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
                           )}
+                          <CardHeader>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3 flex-1">
+                                {getCategoryIcon(brief.category)}
+                                <div className="flex-1">
+                                  <CardTitle className="text-lg flex items-center justify-between gap-2">
+                                    {brief.subject}
+                                    {getImportanceBadge(brief.importance_score)}
+                                  </CardTitle>
+                                  <CardDescription className="mt-1">
+                                    From: {brief.sender} • {brief.date}
+                                  </CardDescription>
+                                </div>
+                              </div>
+                              {getCategoryBadge(brief.category)}
+                            </div>
+                            {brief.thesis_match_score !== undefined && (
+                              <div className="mt-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">Match Score:</span>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-green-500 h-2 rounded-full"
+                                      style={{ width: `${brief.thesis_match_score}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-semibold">{brief.thesis_match_score}%</span>
+                                </div>
+                              </div>
+                            )}
+                          </CardHeader>
+                          <CardContent>
+                            <div className={brief.is_read ? 'revealed' : 'blur-sm pointer-events-none select-none'}>
+                              <p className="text-gray-700 mb-4">{brief.summary}</p>
+                            </div>
 
-                          {brief.is_read && (
+                            {!brief.is_read && (
+                              <Button
+                                onClick={() => handleRevealOpportunity(brief)}
+                                disabled={revealing === brief.id}
+                                variant="default"
+                                className="w-full mb-4"
+                              >
+                                {revealing === brief.id ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Revealing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    Reveal Opportunity
+                                  </>
+                                )}
+                              </Button>
+                            )}
+
+                            {brief.is_read && (
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleDraftReply(brief, brief.summary)}
+                                  disabled={draftLoading === brief.subject}
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  {draftLoading === brief.subject ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Reply className="h-4 w-4 mr-2" />
+                                      Draft Reply
+                                    </>
+                                  )}
+                                </Button>
+                                {brief.gmail_link && (
+                                  <Button
+                                    onClick={() => window.open(brief.gmail_link, '_blank')}
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    View Email
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+
+                          </CardContent>
+                        </Card>
+                      ))}
+                      {/* Pagination Controls */}
+                      {opportunities.length > 0 && (
+                        <div className="mt-4 flex items-center justify-between">
+                          <div className="text-sm text-gray-500">
+                            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalOpportunities)} of {totalOpportunities}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPage(p => Math.max(1, p - 1))}
+                              disabled={page === 1}
+                            >
+                              Previous
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPage(p => p + 1)}
+                              disabled={page * pageSize >= totalOpportunities}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* The Work (Lane B) */
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <Briefcase className="h-5 w-5 text-blue-500" />
+                      Operations
+                    </h2>
+                    <span className="text-sm text-gray-500">{operations.length} items</span>
+                  </div>
+
+                  {operations.length === 0 ? (
+                    <Card className="border-dashed border-2 bg-gray-50/50">
+                      <CardContent className="pt-16 pb-16">
+                        <div className="text-center max-w-sm mx-auto">
+                          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Briefcase className="h-10 w-10 text-blue-500" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">Clear Inbox!</h3>
+                          <p className="text-gray-500">
+                            Your operational inbox is empty. All low-priority or administrative emails will appear here once found.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {operations.map((brief, index) => (
+                        <Card
+                          key={brief.id || index}
+                          className="hover:shadow-md transition-all duration-200"
+                        >
+                          <CardHeader>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3 flex-1">
+                                {getCategoryIcon(brief.category)}
+                                <div className="flex-1">
+                                  <CardTitle className="text-lg flex items-center justify-between gap-2">
+                                    {brief.subject}
+                                    {getImportanceBadge(brief.importance_score)}
+                                  </CardTitle>
+                                  <CardDescription className="mt-1">
+                                    From: {brief.sender} • {brief.date}
+                                  </CardDescription>
+                                </div>
+                              </div>
+                              {getCategoryBadge(brief.category)}
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-gray-700 mb-4">{brief.summary}</p>
+
                             <div className="flex gap-2">
                               <Button
                                 onClick={() => handleDraftReply(brief, brief.summary)}
@@ -984,129 +1142,14 @@ function DashboardContent() {
                                 </Button>
                               )}
                             </div>
-                          )}
 
-                        </CardContent>
-                      </Card>
-                    ))}
-                    {/* Pagination Controls */}
-                    {opportunities.length > 0 && (
-                      <div className="mt-4 flex items-center justify-between">
-                        <div className="text-sm text-gray-500">
-                          Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalOpportunities)} of {totalOpportunities}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                          >
-                            Previous
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage(p => p + 1)}
-                            disabled={page * pageSize >= totalOpportunities}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column - The Work (Lane B) */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-blue-500" />
-                    Operations
-                  </h2>
-                  <span className="text-sm text-gray-500">{operations.length} items</span>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                {operations.length === 0 ? (
-                  <Card className="border-dashed border-2 bg-gray-50/50">
-                    <CardContent className="pt-16 pb-16">
-                      <div className="text-center max-w-sm mx-auto">
-                        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <Briefcase className="h-10 w-10 text-blue-500" />
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Clear Inbox!</h3>
-                        <p className="text-gray-500">
-                          Your operational inbox is empty. All low-priority or administrative emails will appear here once found.
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    {operations.map((brief, index) => (
-                      <Card
-                        key={brief.id || index}
-                        className="hover:shadow-md transition-all duration-200"
-                      >
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              {getCategoryIcon(brief.category)}
-                              <div className="flex-1">
-                                <CardTitle className="text-lg flex items-center justify-between gap-2">
-                                  {brief.subject}
-                                  {getImportanceBadge(brief.importance_score)}
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                  From: {brief.sender} • {brief.date}
-                                </CardDescription>
-                              </div>
-                            </div>
-                            {getCategoryBadge(brief.category)}
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-gray-700 mb-4">{brief.summary}</p>
-
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => handleDraftReply(brief, brief.summary)}
-                              disabled={draftLoading === brief.subject}
-                              variant="outline"
-                              size="sm"
-                            >
-                              {draftLoading === brief.subject ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Generating...
-                                </>
-                              ) : (
-                                <>
-                                  <Reply className="h-4 w-4 mr-2" />
-                                  Draft Reply
-                                </>
-                              )}
-                            </Button>
-                            {brief.gmail_link && (
-                              <Button
-                                onClick={() => window.open(brief.gmail_link, '_blank')}
-                                variant="outline"
-                                size="sm"
-                              >
-                                <ExternalLink className="h-4 w-4 mr-2" />
-                                View Email
-                              </Button>
-                            )}
-                          </div>
-
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </>
         )}
