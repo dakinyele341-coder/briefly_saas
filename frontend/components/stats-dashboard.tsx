@@ -19,7 +19,7 @@ interface StatsDashboardProps {
   onViewOperations?: () => void
   onViewUnreadOpportunities?: () => void
   onViewUnreadOperations?: () => void
-  activeTab?: 'opportunities' | 'operations'
+  activeTab?: 'opportunities' | 'operations' | 'recent-scans'
 }
 
 export function StatsDashboard({
@@ -134,4 +134,3 @@ export function StatsDashboard({
     </div>
   )
 }
-

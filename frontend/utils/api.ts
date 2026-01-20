@@ -517,3 +517,20 @@ export async function disconnectGmail(userId: string) {
     method: 'DELETE',
   })
 }
+
+/**
+ * Get recent processed emails (all within 24h window)
+ */
+export async function getRecentProcessedEmails(
+  userId: string,
+  limit: number = 100,
+  offset: number = 0
+) {
+  const params = new URLSearchParams({
+    user_id: userId,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  })
+
+  return apiFetch<{ summaries: Summary[], total: number }>(`/api/recent-processed?${params.toString()}`)
+}

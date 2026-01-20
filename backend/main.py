@@ -1112,6 +1112,69 @@ async def get_email_history(
         raise HTTPException(status_code=500, detail=f"Error fetching email history: {str(e)}")
 
 
+@app.get("/api/recent-processed", response_model=BriefsResponse)
+async def get_recent_processed_emails(
+    user_id: str,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    Get all recently processed emails within 24h window.
+    Shows processed emails organized by processing time/batches.
+
+    Args:
+        user_id: User ID
+        limit: Number of emails to return (default: 100, max: 500)
+        offset: Number of emails to skip (default: 0)
+    """
+    try:
+        # Cleanup old data first (24h retention policy)
+        cleanup_old_summaries(user_id)
+
+        # Validate limit
+        limit = min(max(1, limit), 500)  # Between 1 and 500
+        offset = max(0, offset)
+
+        # Build query - get all summaries within 24h window
+        query = supabase.table('summaries')\
+            .select('*', count='exact')\
+            .eq('user_id', user_id)
+
+        # Order by creation date (newest first) to show processing batches
+        result = query\
+            .order('created_at', desc=True)\
+            .range(offset, offset + limit - 1)\
+            .execute()
+
+        total_count = result.count if hasattr(result, 'count') else 0
+        if total_count is None:
+            total_count = len(result.data) if result.data else 0
+
+        if not result.data:
+            return BriefsResponse(summaries=[], total=0)
+
+        summaries = []
+        for item in result.data:
+            summaries.append(SummaryResponse(
+                id=str(item.get('id', '')),
+                summary=item.get('summary', ''),
+                category=item.get('category', 'LOW'),
+                subject=item.get('subject', ''),
+                sender=item.get('sender', ''),
+                date=item.get('date', ''),
+                lane=item.get('lane'),
+                thesis_match_score=item.get('thesis_match_score'),
+                gmail_link=item.get('gmail_link'),
+                is_read=item.get('is_read', False),
+                created_at=item.get('created_at')
+            ))
+
+        return BriefsResponse(summaries=summaries, total=total_count)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching recent processed emails: {str(e)}")
+
+
 @app.post("/api/history/{history_id}/read")
 async def mark_history_as_read(history_id: str, user_id: str):
     """
