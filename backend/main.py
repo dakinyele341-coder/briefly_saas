@@ -533,14 +533,13 @@ def scan_emails(request: ScanRequest):
         # DEFAULT BEHAVIOR: All users scan recent emails to ensure all emails are analyzed
         # The msg_id idempotency check prevents duplicate processing while allowing rescans
         if request.time_range == "auto":
-            # REFINED SCAN LOGIC:
-            # 1. Rescan: If reset_history is True, clear old summaries first
-            if request.reset_history:
-                logger.info(f"[Scan] Rescan requested: Deleting previous summaries for user {request.user_id}")
-                try:
-                    supabase.table('summaries').delete().eq('user_id', request.user_id).execute()
-                except Exception as del_err:
-                    logger.error(f"[Scan] Failed to delete summaries for reset: {del_err}")
+            # REFINED SCAN LOGIC: ALWAYS FRESH
+            # Every scan clears old summaries to provide a fresh, latest-only view on the dashboard.
+            logger.info(f"[Scan] Fresh scan started: Deleting previous summaries for user {request.user_id}")
+            try:
+                supabase.table('summaries').delete().eq('user_id', request.user_id).execute()
+            except Exception as del_err:
+                logger.error(f"[Scan] Failed to delete summaries: {del_err}")
 
             # Determine window:
             # 1. New Scan: If hasn't completed free scan, do 72h (3 days)

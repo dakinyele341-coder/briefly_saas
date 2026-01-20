@@ -416,7 +416,7 @@ function DashboardContent() {
       setOpportunities([])
       setOperations([])
 
-      const result = await scanEmails(user.id, keywords, role, 500, 'auto', resetHistory)
+      const result = await scanEmails(user.id, keywords, role, 500, 'auto', true)
 
       // Refresh subscription info locally after scan to pick up status changes
       try {
@@ -745,29 +745,17 @@ function DashboardContent() {
                     Refresh
                   </Button>
 
-                  {/* SCAN & RESET BUTTONS - Header only. Logic: Admin/Standard/Pro or First Free Scan */}
+                  {/* SCAN BUTTON - Header only. Always performs a fresh scan. */}
                   {(isAdmin || (subscriptionInfo?.subscription_status === 'active' || subscriptionInfo?.subscription_status === 'trial') || !((subscriptionInfo as any)?.has_completed_free_scan)) ? (
-                    <>
-                      <Button
-                        onClick={() => handleScan(true)}
-                        variant="outline"
-                        disabled={refreshing}
-                        className="transition-all hover:bg-red-50 hover:text-red-600 border-dashed"
-                        title="Delete previous analysis and scan afresh"
-                      >
-                        <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                        <span className="text-xs">Reset Scan</span>
-                      </Button>
-                      <Button
-                        onClick={() => handleScan(false)}
-                        variant="default"
-                        disabled={refreshing}
-                        className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''}`}
-                      >
-                        <Mail className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                        Scan Emails
-                      </Button>
-                    </>
+                    <Button
+                      onClick={() => handleScan(true)}
+                      variant="default"
+                      disabled={refreshing}
+                      className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''}`}
+                    >
+                      <Mail className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                      Scan Emails
+                    </Button>
                   ) : (
                     /* Free tier user post-free-scan -> Upgrade Required */
                     <Button
@@ -852,10 +840,6 @@ function DashboardContent() {
             {/* Stats Dashboard */}
             <StatsDashboard
               stats={stats}
-              onViewOpportunities={() => router.push('/history?filter=opportunity')}
-              onViewOperations={() => router.push('/history?filter=operation')}
-              onViewUnreadOpportunities={() => router.push('/history?filter=opportunity&unread=true')}
-              onViewUnreadOperations={() => router.push('/history?filter=operation&unread=true')}
             />
 
             {/* Achievements */}

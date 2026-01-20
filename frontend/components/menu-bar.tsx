@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 import {
   Home,
   Settings,
-  History,
   CreditCard,
   MessageSquare,
   BarChart3,
@@ -28,12 +27,6 @@ const menuItems = [
     href: '/dashboard',
     icon: Home,
     description: 'Your email dashboard'
-  },
-  {
-    name: 'History',
-    href: '/history',
-    icon: History,
-    description: 'View processed emails'
   },
   {
     name: 'Settings',

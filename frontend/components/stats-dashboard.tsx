@@ -54,8 +54,7 @@ export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, o
       </Card>
 
       <Card
-        className="hover:shadow-lg transition-shadow duration-200 border-yellow-200 bg-gradient-to-br from-yellow-50 to-white cursor-pointer"
-        onClick={onViewOpportunities}
+        className="hover:shadow-md transition-shadow duration-200 border-yellow-200 bg-gradient-to-br from-yellow-50 to-white"
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
@@ -67,13 +66,7 @@ export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, o
           <div className="text-2xl font-bold text-yellow-700">{stats.opportunities}</div>
           <p className="text-xs text-gray-500 mt-1">
             {stats.unread_opportunities > 0 && (
-              <span
-                className="text-yellow-600 font-semibold cursor-pointer hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onViewUnreadOpportunities?.()
-                }}
-              >
+              <span className="text-yellow-600 font-semibold">
                 {stats.unread_opportunities} new
               </span>
             )}
@@ -83,8 +76,7 @@ export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, o
       </Card>
 
       <Card
-        className="hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-        onClick={onViewOperations}
+        className="hover:shadow-md transition-shadow duration-200"
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
@@ -96,13 +88,7 @@ export function StatsDashboard({ stats, onViewOpportunities, onViewOperations, o
           <div className="text-2xl font-bold">{stats.operations}</div>
           <p className="text-xs text-gray-500 mt-1">
             {stats.unread_operations > 0 && (
-              <span
-                className="text-blue-600 font-semibold cursor-pointer hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onViewUnreadOperations?.()
-                }}
-              >
+              <span className="text-blue-600 font-semibold">
                 {stats.unread_operations} new
               </span>
             )}
