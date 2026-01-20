@@ -416,7 +416,7 @@ def check_user_access(user_id: str, user_email: Optional[str] = None) -> bool:
     if user_email and models.is_admin_email(user_email):
         return True  # Admin users always have access - no payment required
 
-    # Check if user has completed their one-time free 72h scan
+    # Check if user has completed their one-time free 24h scan
     profile = models.get_user_profile(supabase, user_id)
     if profile and not profile.get('has_completed_free_scan', False):
         return True # Allow access for the first scan
@@ -547,8 +547,8 @@ def scan_emails(request: ScanRequest):
             has_completed_free_scan = user_profile.get('has_completed_free_scan', False) if user_profile else False
             
             if not has_completed_free_scan:
-                scan_days = 3
-                logger.info(f"[Scan] Initial free scan for user {request.user_id}: Scanning last {scan_days} days")
+                scan_days = 1
+                logger.info(f"[Scan] Initial free scan for user {request.user_id}: Scanning last {scan_days} day")
             else:
                 scan_days = 1
                 logger.info(f"[Scan] Paid/Admin scan for user {request.user_id}: Scanning last {scan_days} day")
@@ -1499,8 +1499,8 @@ async def get_unscanned_emails_count(user_id: str):
         if updated_creds:
              models.save_google_credentials(supabase, user_id, updated_creds)
 
-        # Query for unread emails in inbox from the last 24 hours to keep notifications fresh
-        query = 'is:unread in:inbox newer_than:1d'
+        # Query for ALL emails in inbox from the last 24 hours
+        query = 'in:inbox newer_than:1d'
         result = service.users().messages().list(
             userId='me',
             q=query,
@@ -1508,12 +1508,34 @@ async def get_unscanned_emails_count(user_id: str):
         ).execute()
 
         messages = result.get('messages', [])
-        count = len(messages) if messages else 0
+        if not messages:
+            return {"count": 0, "threshold_reached": False, "urgent": False}
+
+        # Get the msg_ids from Gmail
+        gmail_msg_ids = [m['id'] for m in messages]
+
+        # Check which ones are already processed in Supabase
+        # We check the 'msg_id' column in the 'summaries' table
+        try:
+            processed_result = supabase.table('summaries')\
+                .select('msg_id')\
+                .eq('user_id', user_id)\
+                .in_('msg_id', gmail_msg_ids)\
+                .execute()
+            
+            processed_ids = set(item.get('msg_id') for item in processed_result.data) if processed_result.data else set()
+        except Exception as db_err:
+            logger.error(f"Error checking processed summaries in unscanned-count: {db_err}")
+            processed_ids = set()
+
+        # True unscanned count is Gmail inbox emails minus processed ones
+        unscanned_messages = [mid for mid in gmail_msg_ids if mid not in processed_ids]
+        count = len(unscanned_messages)
 
         return {
             "count": count,
-            "threshold_reached": count >= 15,  # Notify at 15+
-            "urgent": count >= 50  # Very urgent at 50+
+            "threshold_reached": count >= 15,
+            "urgent": count >= 50
         }
 
     except Exception as e:
