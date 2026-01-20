@@ -267,7 +267,7 @@ export default function PricingPage() {
 
         {/* Trust Badges */}
         <div className="text-center mt-16 space-y-4">
-          <p className="text-gray-400 text-sm">Trusted by investors, founders, and influencers worldwide</p>
+          <p className="text-gray-400 text-sm">Trusted by investors, founders, and agency owners worldwide</p>
           <div className="flex items-center justify-center gap-8 text-gray-500 text-xs">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4" />

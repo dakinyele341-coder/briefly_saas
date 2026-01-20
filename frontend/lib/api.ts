@@ -29,11 +29,11 @@ export async function fetchBrief(
       limit: limit.toString(),
       offset: offset.toString(),
     });
-    
+
     if (category) {
       params.append('category', category);
     }
-    
+
     if (lane) {
       params.append('lane', lane);
     }
@@ -80,7 +80,7 @@ export async function markBriefAsRead(briefId: string, userId: string): Promise<
 export async function scanEmails(
   userId: string,
   keywords: string[],
-  userRole: 'Investor' | 'Influencer' | 'Founder',
+  userRole: 'Investor' | 'Agency Owner' | 'Founder',
   limit: number = 20
 ): Promise<{ summaries: Summary[]; processed: number; skipped: number }> {
   try {

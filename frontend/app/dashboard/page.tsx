@@ -33,9 +33,9 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
 
 const LANE_A_TITLES: Record<UserRole, string> = {
-  Investor: 'Deal Flow',
-  Influencer: 'Sponsorships',
-  'Founder/Business Owner': 'Leads',
+  Investor: 'Opportunities',
+  'Agency Owner': 'Opportunities',
+  'Founder/Business Owner': 'Opportunities',
 }
 
 import { User } from '@supabase/supabase-js'
@@ -1040,7 +1040,7 @@ function DashboardContent() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold flex items-center gap-2">
                     <Briefcase className="h-5 w-5 text-blue-500" />
-                    Operational Inbox
+                    Operations
                   </h2>
                   <span className="text-sm text-gray-500">{operations.length} items</span>
                 </div>

@@ -1687,10 +1687,10 @@ async def get_admin_stats(user_email: str):
         total_opportunities = len(opportunities_result.data) if opportunities_result.data else 0
         
         # Calculate MRR (Monthly Recurring Revenue)
-        # Pricing: Investor (Pro) $99, Influencer/Founder-Business Owner (Standard) $29
+        # Pricing: Investor (Pro) $99, Agency Owner/Founder-Business Owner (Standard) $29
         pricing = {
             'Investor': 99,
-            'Influencer': 29,
+            'Agency Owner': 29,
             'Founder': 29
         }
         

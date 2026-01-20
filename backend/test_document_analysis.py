@@ -71,8 +71,8 @@ CEO, TechFlow AI
     print('Test 3: Non-Investor Role - Document Analysis DISABLED')
     result_non_investor = classify_email_dual_pipeline(
         email_content=email_with_docs,
-        keywords=['content', 'social media', 'influencer'],
-        user_role='Influencer',
+        keywords=['content', 'social media', 'agency', 'marketing'],
+        user_role='Agency Owner',
         pdf_analysis_allowed=True  # Even if enabled, should be disabled for non-investors
     )
 

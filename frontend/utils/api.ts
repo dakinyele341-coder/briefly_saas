@@ -157,7 +157,7 @@ export async function markBriefAsRead(briefId: string, userId: string) {
 export async function scanEmails(
   userId: string,
   keywords: string[],
-  userRole: 'Investor' | 'Influencer' | 'Founder/Business Owner',
+  userRole: 'Investor' | 'Agency Owner' | 'Founder/Business Owner',
   limit: number = 10,
   timeRange: string = 'auto',
   resetHistory: boolean = false

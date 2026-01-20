@@ -1,6 +1,6 @@
 """
 Dual-Pipeline Classifier for Deal Flow Engine.
-Implements the "Two-Lane" classification system for Investors, Influencers, and Founders.
+Implements the "Two-Lane" classification system for Investors, Agency Owners, and Founders.
 """
 import json
 from typing import Dict, List, Optional
