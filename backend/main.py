@@ -849,7 +849,7 @@ async def get_brief(
     """
     try:
         # Validate limit
-        limit = min(max(1, limit), 100)  # Between 1 and 100
+        limit = min(max(1, limit), 500)  # Between 1 and 500
         offset = max(0, offset)  # Non-negative
         
         # Build query - request exact count

@@ -114,7 +114,7 @@ function DashboardContent() {
   const router = useRouter()
 
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(10)
+  const [pageSize] = useState(500)
   const [totalOpportunities, setTotalOpportunities] = useState(0)
   const [totalOperations, setTotalOperations] = useState(0)
 
@@ -126,7 +126,7 @@ function DashboardContent() {
       // Fetch opportunities and operations in parallel
       const [oppsData, opsData] = await Promise.all([
         getBriefs(user.id, pageSize, (page - 1) * pageSize, undefined, 'opportunity'),
-        getBriefs(user.id, pageSize, 0, undefined, 'operation')
+        getBriefs(user.id, pageSize, (page - 1) * pageSize, undefined, 'operation')
       ])
 
       setOpportunities(oppsData.summaries)
@@ -882,7 +882,7 @@ function DashboardContent() {
                   <Sparkles className={cn("h-4 w-4", activeTab === 'opportunities' ? "text-yellow-500" : "text-gray-400")} />
                   {LANE_A_TITLES[userRole]}
                   <Badge variant="outline" className={cn("ml-2", activeTab === 'opportunities' ? "bg-yellow-100 text-yellow-700" : "")}>
-                    {opportunities.length}
+                    {totalOpportunities}
                   </Badge>
                 </button>
                 <button
@@ -897,7 +897,7 @@ function DashboardContent() {
                   <Briefcase className={cn("h-4 w-4", activeTab === 'operations' ? "text-blue-500" : "text-gray-400")} />
                   Operations
                   <Badge variant="outline" className={cn("ml-2", activeTab === 'operations' ? "bg-blue-100 text-blue-700" : "")}>
-                    {operations.length}
+                    {totalOperations}
                   </Badge>
                 </button>
               </div>
@@ -911,7 +911,7 @@ function DashboardContent() {
                       <Sparkles className="h-5 w-5 text-yellow-500" />
                       {LANE_A_TITLES[userRole]}
                     </h2>
-                    <span className="text-sm text-gray-500">{opportunities.length} opportunities</span>
+                    <span className="text-sm text-gray-500">{totalOpportunities} opportunities</span>
                   </div>
 
                   {opportunities.length === 0 ? (
@@ -1068,7 +1068,7 @@ function DashboardContent() {
                       <Briefcase className="h-5 w-5 text-blue-500" />
                       Operations
                     </h2>
-                    <span className="text-sm text-gray-500">{operations.length} items</span>
+                    <span className="text-sm text-gray-500">{totalOperations} items</span>
                   </div>
 
                   {operations.length === 0 ? (
@@ -1146,6 +1146,32 @@ function DashboardContent() {
                           </CardContent>
                         </Card>
                       ))}
+                      {/* Pagination Controls */}
+                      {operations.length > 0 && (
+                        <div className="mt-4 flex items-center justify-between">
+                          <div className="text-sm text-gray-500">
+                            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalOperations)} of {totalOperations}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPage(p => Math.max(1, p - 1))}
+                              disabled={page === 1}
+                            >
+                              Previous
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPage(p => p + 1)}
+                              disabled={page * pageSize >= totalOperations}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
