@@ -115,6 +115,7 @@ class SummaryResponse(BaseModel):
     thesis_match_score: Optional[float] = None
     gmail_link: Optional[str] = None
     is_read: Optional[bool] = False
+    created_at: Optional[str] = None
 
 
 class ScanResponse(BaseModel):
@@ -172,8 +173,31 @@ def process_email(email: Dict, keywords: List[str], user_role: UserRole, user_id
         
         return summary_data
     except Exception as e:
-        logger.error(f"Error processing email {email.get('msg_id', 'unknown')}: {e}")
         return None
+
+
+def cleanup_old_summaries(user_id: str):
+    """
+    Delete summaries older than 24 hours for a specific user.
+    This ensures the dashboard only shows fresh analysis results.
+    """
+    try:
+        # Calculate time 24 hours ago
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        
+        logger.info(f"[Cleanup] Removing summaries older than {cutoff} for user {user_id}")
+        
+        result = supabase.table('summaries')\
+            .delete()\
+            .eq('user_id', user_id)\
+            .lt('created_at', cutoff)\
+            .execute()
+            
+        deleted_count = len(result.data) if result.data else 0
+        if deleted_count > 0:
+            logger.info(f"[Cleanup] Deleted {deleted_count} old summaries for user {user_id}")
+    except Exception as e:
+        logger.error(f"[Cleanup] Error cleaning up old summaries: {e}")
 
 
 def save_summary_to_supabase(summary_data: Dict):
@@ -473,6 +497,9 @@ def scan_emails(request: ScanRequest):
     The msg_id idempotency check prevents duplicate processing.
     """
     try:
+        # Cleanup old data first (24h retention policy)
+        cleanup_old_summaries(request.user_id)
+
         # Validate input
         if not request.keywords or len(request.keywords) == 0:
             raise HTTPException(status_code=400, detail="Keywords are required. Please set up your thesis in settings.")
@@ -532,47 +559,30 @@ def scan_emails(request: ScanRequest):
         # Determine scan time range
         # DEFAULT BEHAVIOR: All users scan recent emails to ensure all emails are analyzed
         # The msg_id idempotency check prevents duplicate processing while allowing rescans
-        if request.time_range == "auto":
-            # REFINED SCAN LOGIC: ALWAYS FRESH
-            # Every scan clears old summaries to provide a fresh, latest-only view on the dashboard.
-            logger.info(f"[Scan] Fresh scan started: Deleting previous summaries for user {request.user_id}")
-            try:
-                supabase.table('summaries').delete().eq('user_id', request.user_id).execute()
-            except Exception as del_err:
-                logger.error(f"[Scan] Failed to delete summaries: {del_err}")
+                if not emails:
+                    return ScanResponse(summaries=[], processed=0, skipped=0, total_found=0, message="No emails found in the specified time range.")
 
-            # Determine window:
-            # 1. New Scan: If hasn't completed free scan, do 72h (3 days)
-            # 2. Subsequent: Scanning latest (1 day)
-            has_completed_free_scan = user_profile.get('has_completed_free_scan', False) if user_profile else False
-            
-            if not has_completed_free_scan:
-                scan_days = 1
-                logger.info(f"[Scan] Initial free scan for user {request.user_id}: Scanning last {scan_days} day")
-            else:
-                scan_days = 1
-                logger.info(f"[Scan] Paid/Admin scan for user {request.user_id}: Scanning last {scan_days} day")
-            
-            # REMOVE LIMIT: User wants all emails in the time range
-            # We'll use a high enough limit to practically be "all" but prevent extreme outliers from hanging
-            scan_limit = 500
-            
-            logger.info(f"[Scan] Calling Gmail API to fetch recent emails (days={scan_days}, limit={scan_limit})")
-            
-            try:
-                emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=scan_limit, days=scan_days)
-                
-                # Check for explicit API errors
-                if error_msg:
-                    logger.error(f"[Scan] Gmail API returned error: {error_msg}")
-                    raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
+                # INCREMENTAL LOGIC: Filter out emails already in database
+                gmail_msg_ids = [e['msg_id'] for e in emails]
+                try:
+                    existing_res = supabase.table('summaries')\
+                        .select('msg_id')\
+                        .eq('user_id', request.user_id)\
+                        .in_('msg_id', gmail_msg_ids)\
+                        .execute()
+                    
+                    existing_ids = set(item['msg_id'] for item in existing_res.data) if existing_res.data else set()
+                    
+                    # Only process what we don't already have
+                    original_count = len(emails)
+                    emails = [e for e in emails if e['msg_id'] not in existing_ids]
+                    new_count = len(emails)
+                    
+                    if original_count > new_count:
+                        logger.info(f"[Scan] Incremental filtering: Skipping {original_count - new_count} already processed emails.")
+                except Exception as inc_err:
+                    logger.error(f"[Scan] Incremental check failed (continuing with full list): {inc_err}")
 
-                if updated_creds:
-                    models.save_google_credentials(supabase, request.user_id, updated_creds)
-                    logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
-                
-                logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
-                
                 # After a successful scan (even if 0 emails), if it was the free one, mark it as completed
                 if not has_completed_free_scan:
                     try:
@@ -707,7 +717,8 @@ def scan_emails(request: ScanRequest):
                                 lane=summary_data.get('lane'),
                                 thesis_match_score=summary_data.get('thesis_match_score'),
                                 gmail_link=summary_data.get('gmail_link'),
-                                is_read=summary_data.get('is_read', False)
+                                is_read=summary_data.get('is_read', False),
+                                created_at=summary_data.get('created_at')
                             ))
                             processed += 1
                             logger.info(f"[Scan] Successfully analyzed and saved email: {email.get('subject', 'No Subject')[:50]}")
@@ -845,9 +856,12 @@ async def get_brief(
         limit: Number of summaries to return (default: 10, max: 100)
         offset: Number of summaries to skip (default: 0)
         category: Filter by category (OPPORTUNITY, CRITICAL, HIGH, LOW)
-        lane: Filter by lane (opportunity, operation)
+    lane: Optional[str] = None
     """
     try:
+        # Cleanup old data first (24h retention policy)
+        cleanup_old_summaries(user_id)
+
         # Validate limit
         limit = min(max(1, limit), 500)  # Between 1 and 500
         offset = max(0, offset)  # Non-negative
@@ -892,7 +906,8 @@ async def get_brief(
                 lane=item.get('lane'),
                 thesis_match_score=item.get('thesis_match_score'),
                 gmail_link=item.get('gmail_link'),
-                is_read=item.get('is_read', False)
+                is_read=item.get('is_read', False),
+                created_at=item.get('created_at')
             ))
         
         return BriefsResponse(summaries=summaries, total=total_count)
@@ -1349,6 +1364,9 @@ async def get_dashboard_stats(user_id: str):
     Get enhanced dashboard stats including unread counts.
     """
     try:
+        # Cleanup old data first
+        cleanup_old_summaries(user_id)
+
         # Get all summaries for user
         result = supabase.table('summaries')\
             .select('*')\

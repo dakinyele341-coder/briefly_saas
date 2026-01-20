@@ -108,6 +108,7 @@ function DashboardContent() {
   const [unscannedCount, setUnscannedCount] = useState<number>(0)
   const [scanOptionsOpen, setScanOptionsOpen] = useState<boolean>(false)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState<boolean>(false)
+  const [viewFilter, setViewFilter] = useState<'latest' | 'all'>('all')
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [canScanPastEmails, setCanScanPastEmails] = useState<boolean>(false)
   const [subscriptionInfo, setSubscriptionInfo] = useState<any>(null)
@@ -117,6 +118,44 @@ function DashboardContent() {
   const [pageSize] = useState(500)
   const [totalOpportunities, setTotalOpportunities] = useState(0)
   const [totalOperations, setTotalOperations] = useState(0)
+
+  // Grouping helper
+  const groupSummariesByTime = useCallback((summaries: Summary[]) => {
+    if (viewFilter === 'latest' && summaries.length > 0) {
+      // Find the most recent created_at
+      const mostRecent = Math.max(...summaries.map(s => s.created_at ? new Date(s.created_at).getTime() : 0))
+      // Filter to items within 1 minute of the most recent one (batch)
+      const buffer = 60 * 1000
+      const latestItems = summaries.filter(s => {
+        const time = s.created_at ? new Date(s.created_at).getTime() : 0
+        return mostRecent - time < buffer
+      })
+
+      const groups: Record<string, Summary[]> = { 'Latest Analysis': latestItems }
+      return groups
+    }
+
+    const groups: Record<string, Summary[]> = {}
+
+    // Sort by created_at descending
+    const sorted = [...summaries].sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+      return dateB - dateA
+    })
+
+    sorted.forEach(item => {
+      const date = item.created_at ? new Date(item.created_at) : new Date()
+      const timeKey = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      const dateKey = date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      const key = `${dateKey}, ${timeKey}`
+
+      if (!groups[key]) groups[key] = []
+      groups[key].push(item)
+    })
+
+    return groups
+  }, [viewFilter])
 
   // Helper functions
   const loadBriefs = useCallback(async () => {
@@ -431,6 +470,8 @@ function DashboardContent() {
       } catch (subErr) {
         console.error("Error refreshing subscription after scan:", subErr)
       }
+
+      setViewFilter('latest')
 
       // Show detailed message from backend
       if (result.message) {
@@ -868,7 +909,39 @@ function DashboardContent() {
             )}
 
             <div className="w-full">
-              {/* Tabs Navigation */}
+              {/* View Filter Toggle */}
+              <div className="flex justify-end mb-4">
+                <div className="bg-gray-100 p-1 rounded-lg flex items-center gap-1">
+                  <Button
+                    variant={viewFilter === 'latest' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewFilter('latest')}
+                    className={cn(
+                      "h-8 text-[10px] font-bold uppercase tracking-wider px-4 transition-all duration-200",
+                      viewFilter === 'latest'
+                        ? "bg-white text-gray-900 shadow-sm hover:bg-white"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
+                    )}
+                  >
+                    Latest Scan
+                  </Button>
+                  <Button
+                    variant={viewFilter === 'all' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewFilter('all')}
+                    className={cn(
+                      "h-8 text-[10px] font-bold uppercase tracking-wider px-4 transition-all duration-200",
+                      viewFilter === 'all'
+                        ? "bg-white text-gray-900 shadow-sm hover:bg-white"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
+                    )}
+                  >
+                    Full History (24h)
+                  </Button>
+                </div>
+              </div>
+
+              {/* Tabs Navigation slice */}
               <div className="flex border-b border-gray-200 mb-6 bg-white rounded-t-lg overflow-hidden">
                 <button
                   onClick={() => setActiveTab('opportunities')}
@@ -930,106 +1003,121 @@ function DashboardContent() {
                     </Card>
                   ) : (
                     <div className="space-y-4">
-                      {opportunities.map((brief, index) => (
-                        <Card
-                          key={brief.id || index}
-                          className="relative hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-yellow-400"
-                        >
-                          {!brief.is_read && (
-                            <div className="absolute top-2 right-2 h-3 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
-                          )}
-                          <CardHeader>
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-3 flex-1">
-                                {getCategoryIcon(brief.category)}
-                                <div className="flex-1">
-                                  <CardTitle className="text-lg flex items-center justify-between gap-2">
-                                    {brief.subject}
-                                    {getImportanceBadge(brief.importance_score)}
-                                  </CardTitle>
-                                  <CardDescription className="mt-1">
-                                    From: {brief.sender} • {brief.date}
-                                  </CardDescription>
-                                </div>
-                              </div>
-                              {getCategoryBadge(brief.category)}
-                            </div>
-                            {brief.thesis_match_score !== undefined && (
-                              <div className="mt-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-500">Match Score:</span>
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className="bg-green-500 h-2 rounded-full"
-                                      style={{ width: `${brief.thesis_match_score}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs font-semibold">{brief.thesis_match_score}%</span>
-                                </div>
-                              </div>
-                            )}
-                          </CardHeader>
-                          <CardContent>
-                            <div className={brief.is_read ? 'revealed' : 'blur-sm pointer-events-none select-none'}>
-                              <p className="text-gray-700 mb-4">{brief.summary}</p>
-                            </div>
-
-                            {!brief.is_read && (
-                              <Button
-                                onClick={() => handleRevealOpportunity(brief)}
-                                disabled={revealing === brief.id}
-                                variant="default"
-                                className="w-full mb-4"
+                      {Object.entries(groupSummariesByTime(opportunities)).map(([groupKey, groupItems]) => (
+                        <div key={groupKey} className="mb-10 last:mb-0">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 bg-white px-3 py-1 border border-gray-100 rounded-full shadow-sm">
+                              {groupKey}
+                            </span>
+                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                          </div>
+                          <div className="space-y-4">
+                            {groupItems.map((brief, index) => (
+                              <Card
+                                key={brief.id || `${groupKey}-${index}`}
+                                className="relative hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-yellow-400"
                               >
-                                {revealing === brief.id ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Revealing...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="h-4 w-4 mr-2" />
-                                    Reveal Opportunity
-                                  </>
+                                {!brief.is_read && (
+                                  <div className="absolute top-2 right-2 h-3 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
                                 )}
-                              </Button>
-                            )}
-
-                            {brief.is_read && (
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => handleDraftReply(brief, brief.summary)}
-                                  disabled={draftLoading === brief.subject}
-                                  variant="outline"
-                                  size="sm"
-                                >
-                                  {draftLoading === brief.subject ? (
-                                    <>
-                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                      Generating...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Reply className="h-4 w-4 mr-2" />
-                                      Draft Reply
-                                    </>
+                                <CardHeader>
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-3 flex-1">
+                                      {getCategoryIcon(brief.category)}
+                                      <div className="flex-1">
+                                        <CardTitle className="text-lg flex items-center justify-between gap-2">
+                                          {brief.subject}
+                                          {getImportanceBadge(brief.importance_score)}
+                                        </CardTitle>
+                                        <CardDescription className="mt-1">
+                                          From: {brief.sender} • {brief.date}
+                                        </CardDescription>
+                                      </div>
+                                    </div>
+                                    {getCategoryBadge(brief.category)}
+                                  </div>
+                                  {brief.thesis_match_score !== undefined && (
+                                    <div className="mt-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500">Match Score:</span>
+                                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                          <div
+                                            className="bg-green-500 h-2 rounded-full"
+                                            style={{ width: `${brief.thesis_match_score}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-xs font-semibold">{brief.thesis_match_score}%</span>
+                                      </div>
+                                    </div>
                                   )}
-                                </Button>
-                                {brief.gmail_link && (
-                                  <Button
-                                    onClick={() => window.open(brief.gmail_link, '_blank')}
-                                    variant="outline"
-                                    size="sm"
-                                  >
-                                    <ExternalLink className="h-4 w-4 mr-2" />
-                                    View Email
-                                  </Button>
-                                )}
-                              </div>
-                            )}
+                                </CardHeader>
+                                <CardContent>
+                                  <div className={brief.is_read ? 'revealed' : 'blur-sm pointer-events-none select-none'}>
+                                    <p className="text-gray-700 mb-4">{brief.summary}</p>
+                                  </div>
 
-                          </CardContent>
-                        </Card>
+                                  {!brief.is_read && (
+                                    <Button
+                                      onClick={() => handleRevealOpportunity(brief)}
+                                      disabled={revealing === brief.id}
+                                      variant="default"
+                                      className="w-full mb-4 font-bold"
+                                    >
+                                      {revealing === brief.id ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Revealing...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="h-4 w-4 mr-2" />
+                                          Reveal Opportunity
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+
+                                  {brief.is_read && (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        onClick={() => handleDraftReply(brief, brief.summary)}
+                                        disabled={draftLoading === brief.subject}
+                                        variant="outline"
+                                        size="sm"
+                                        className="font-bold border-2"
+                                      >
+                                        {draftLoading === brief.subject ? (
+                                          <>
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            Generating...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Reply className="h-4 w-4 mr-2" />
+                                            Draft Reply
+                                          </>
+                                        )}
+                                      </Button>
+                                      {brief.gmail_link && (
+                                        <Button
+                                          onClick={() => window.open(brief.gmail_link, '_blank')}
+                                          variant="outline"
+                                          size="sm"
+                                          className="font-bold border-2"
+                                        >
+                                          <ExternalLink className="h-4 w-4 mr-2" />
+                                          View Email
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
                       ))}
                       {/* Pagination Controls */}
                       {opportunities.length > 0 && (
@@ -1087,64 +1175,79 @@ function DashboardContent() {
                     </Card>
                   ) : (
                     <div className="space-y-4">
-                      {operations.map((brief, index) => (
-                        <Card
-                          key={brief.id || index}
-                          className="hover:shadow-md transition-all duration-200"
-                        >
-                          <CardHeader>
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-3 flex-1">
-                                {getCategoryIcon(brief.category)}
-                                <div className="flex-1">
-                                  <CardTitle className="text-lg flex items-center justify-between gap-2">
-                                    {brief.subject}
-                                    {getImportanceBadge(brief.importance_score)}
-                                  </CardTitle>
-                                  <CardDescription className="mt-1">
-                                    From: {brief.sender} • {brief.date}
-                                  </CardDescription>
-                                </div>
-                              </div>
-                              {getCategoryBadge(brief.category)}
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-gray-700 mb-4">{brief.summary}</p>
-
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={() => handleDraftReply(brief, brief.summary)}
-                                disabled={draftLoading === brief.subject}
-                                variant="outline"
-                                size="sm"
+                      {Object.entries(groupSummariesByTime(operations)).map(([groupKey, groupItems]) => (
+                        <div key={groupKey} className="mb-10 last:mb-0">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 bg-white px-3 py-1 border border-gray-100 rounded-full shadow-sm">
+                              {groupKey}
+                            </span>
+                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                          </div>
+                          <div className="space-y-4">
+                            {groupItems.map((brief, index) => (
+                              <Card
+                                key={brief.id || `${groupKey}-${index}`}
+                                className="hover:shadow-md transition-all duration-200 border-l-4 border-l-transparent hover:border-l-blue-400"
                               >
-                                {draftLoading === brief.subject ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Generating...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Reply className="h-4 w-4 mr-2" />
-                                    Draft Reply
-                                  </>
-                                )}
-                              </Button>
-                              {brief.gmail_link && (
-                                <Button
-                                  onClick={() => window.open(brief.gmail_link, '_blank')}
-                                  variant="outline"
-                                  size="sm"
-                                >
-                                  <ExternalLink className="h-4 w-4 mr-2" />
-                                  View Email
-                                </Button>
-                              )}
-                            </div>
+                                <CardHeader>
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-3 flex-1">
+                                      {getCategoryIcon(brief.category)}
+                                      <div className="flex-1">
+                                        <CardTitle className="text-lg flex items-center justify-between gap-2">
+                                          {brief.subject}
+                                          {getImportanceBadge(brief.importance_score)}
+                                        </CardTitle>
+                                        <CardDescription className="mt-1">
+                                          From: {brief.sender} • {brief.date}
+                                        </CardDescription>
+                                      </div>
+                                    </div>
+                                    {getCategoryBadge(brief.category)}
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  <p className="text-gray-700 mb-4">{brief.summary}</p>
 
-                          </CardContent>
-                        </Card>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={() => handleDraftReply(brief, brief.summary)}
+                                      disabled={draftLoading === brief.subject}
+                                      variant="outline"
+                                      size="sm"
+                                      className="font-bold border-2"
+                                    >
+                                      {draftLoading === brief.subject ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Generating...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Reply className="h-4 w-4 mr-2" />
+                                          Draft Reply
+                                        </>
+                                      )}
+                                    </Button>
+                                    {brief.gmail_link && (
+                                      <Button
+                                        onClick={() => window.open(brief.gmail_link, '_blank')}
+                                        variant="outline"
+                                        size="sm"
+                                        className="font-bold border-2"
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View Email
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
                       ))}
                       {/* Pagination Controls */}
                       {operations.length > 0 && (

@@ -12,6 +12,7 @@ export interface Summary {
   gmail_link?: string;
   is_read?: boolean;
   importance_score?: number;
+  created_at?: string;
 }
 
 export type UserRole = 'Investor' | 'Agency Owner' | 'Founder/Business Owner'
