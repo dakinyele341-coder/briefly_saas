@@ -1708,11 +1708,11 @@ async def get_admin_stats(user_email: str):
         total_opportunities = len(opportunities_result.data) if opportunities_result.data else 0
         
         # Calculate MRR (Monthly Recurring Revenue)
-        # Pricing: Investor (Pro) $99, Agency Owner/Founder-Business Owner (Standard) $29
+        # Pricing: Standard $15, Pro $29
         pricing = {
-            'Investor': 99,
-            'Agency Owner': 29,
-            'Founder': 29
+            'Investor': 29,
+            'Agency Owner': 15,
+            'Founder': 15
         }
         
         # Get users by role
@@ -1821,8 +1821,8 @@ async def get_admin_users(user_email: str, limit: int = 50, offset: int = 0):
 
 # Subscription pricing (per month)
 SUBSCRIPTION_PRICING = {
-    "standard": 29.00,
-    "pro": 99.00,
+    "standard": 15.00,
+    "pro": 29.00,
     "free": 0.00
 }
 
@@ -2016,7 +2016,7 @@ async def get_subscription_pricing():
         "plans": {
             "standard": {
                 "name": "Standard",
-                "price": 29.00,
+                "price": 15.00,
                 "currency": "USD",
                 "interval": "month",
                 "payment_link": PAYMENT_LINKS.get("standard", ""),
@@ -2029,15 +2029,14 @@ async def get_subscription_pricing():
             },
             "pro": {
                 "name": "Pro",
-                "price": 99.00,
+                "price": 29.00,
                 "currency": "USD",
                 "interval": "month",
                 "payment_link": PAYMENT_LINKS.get("pro", ""),
                 "features": [
                     "Everything in Standard",
                     "Priority support",
-                    "Advanced analytics",
-                    "Custom integrations",
+                    "Unlimited pitch deck/document analysis",
                     "Early access to new features"
                 ]
             }

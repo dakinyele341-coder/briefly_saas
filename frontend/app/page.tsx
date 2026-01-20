@@ -383,11 +383,11 @@ export default function Home() {
                   <div className="mb-4">
                     {isDiscounted ? (
                       <>
-                        <p className="text-2xl text-zinc-500 line-through">$29</p>
-                        <p className="text-5xl font-extrabold text-green-400">$14.50<span className="text-xl text-zinc-400">/month</span></p>
+                        <p className="text-2xl text-zinc-500 line-through">$15</p>
+                        <p className="text-5xl font-extrabold text-green-400">$7.50<span className="text-xl text-zinc-400">/month</span></p>
                       </>
                     ) : (
-                      <p className="text-5xl font-extrabold text-white">$29<span className="text-xl text-zinc-400">/month</span></p>
+                      <p className="text-5xl font-extrabold text-white">$15<span className="text-xl text-zinc-400">/month</span></p>
                     )}
                   </div>
                   <CardDescription className="text-zinc-300 text-center">For Founders & Creators</CardDescription>
@@ -417,11 +417,11 @@ export default function Home() {
                   <div className="mb-4">
                     {isDiscounted ? (
                       <>
-                        <p className="text-2xl text-zinc-500 line-through">$99</p>
-                        <p className="text-5xl font-extrabold text-green-400">$49.50<span className="text-xl text-zinc-400">/month</span></p>
+                        <p className="text-2xl text-zinc-500 line-through">$29</p>
+                        <p className="text-5xl font-extrabold text-green-400">$14.50<span className="text-xl text-zinc-400">/month</span></p>
                       </>
                     ) : (
-                      <p className="text-5xl font-extrabold text-white">$99<span className="text-xl text-zinc-400">/month</span></p>
+                      <p className="text-5xl font-extrabold text-white">$29<span className="text-xl text-zinc-400">/month</span></p>
                     )}
                   </div>
                   <CardDescription className="text-purple-300 text-center">For Investors</CardDescription>
@@ -431,7 +431,7 @@ export default function Home() {
                     <ShieldCheck className="h-5 w-5 mr-3 text-green-400" /> Everything in Standard, plus:
                   </p>
                   <p className="flex items-center">
-                    <FileText className="h-5 w-5 mr-3 text-purple-400" /> Pitch Deck / Document Analysis
+                    <FileText className="h-5 w-5 mr-3 text-purple-400" /> Unlimited Pitch Deck / Document Analysis
                   </p>
                   <p className="flex items-center">
                     <TrendingUp className="h-5 w-5 mr-3 text-purple-400" /> Thesis-Match Scoring

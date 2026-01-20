@@ -121,7 +121,7 @@ export default function PricingPage() {
               </CardDescription>
               <div className="pt-4">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-white">$29</span>
+                  <span className="text-5xl font-bold text-white">$15</span>
                   <span className="text-gray-400 text-lg">/month</span>
                 </div>
               </div>
@@ -201,7 +201,7 @@ export default function PricingPage() {
               </CardDescription>
               <div className="pt-4">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-white">$99</span>
+                  <span className="text-5xl font-bold text-white">$29</span>
                   <span className="text-gray-300 text-lg">/month</span>
                 </div>
               </div>
@@ -227,7 +227,7 @@ export default function PricingPage() {
                 <div className="flex items-start gap-3">
                   <Check className="h-6 w-6 text-green-400 flex-shrink-0 mt-1" />
                   <span className="text-gray-200">
-                    <span className="font-semibold text-white">Document / Pitch Deck Analysis</span> (PDF Analysis)
+                    <span className="font-semibold text-white">Unlimited Document / Pitch Deck Analysis</span> (PDF Analysis)
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
