@@ -546,6 +546,9 @@ def scan_emails(request: ScanRequest):
         has_summaries = has_existing_summaries(request.user_id)
         can_scan_past = is_admin or (is_new and not has_summaries)
 
+        # Check if user has completed their one-time free 24h scan
+        has_completed_free_scan = user_profile.get('has_completed_free_scan', False) if user_profile else False
+
         # Check subscription for PDF analysis (Investors with Pro plan only)
         user_role = request.user_role
         has_pro_plan = False
@@ -558,41 +561,23 @@ def scan_emails(request: ScanRequest):
 
         # Determine scan time range
         # DEFAULT BEHAVIOR: All users scan recent emails to ensure all emails are analyzed
-        # The msg_id idempotency check prevents duplicate processing while allowing rescans
-                if not emails:
-                    return ScanResponse(summaries=[], processed=0, skipped=0, total_found=0, message="No emails found in the specified time range.")
+        # The msg_id idempotency check prevents duplicate processing
 
-                # INCREMENTAL LOGIC: Filter out emails already in database
-                gmail_msg_ids = [e['msg_id'] for e in emails]
-                try:
-                    existing_res = supabase.table('summaries')\
-                        .select('msg_id')\
-                        .eq('user_id', request.user_id)\
-                        .in_('msg_id', gmail_msg_ids)\
-                        .execute()
-                    
-                    existing_ids = set(item['msg_id'] for item in existing_res.data) if existing_res.data else set()
-                    
-                    # Only process what we don't already have
-                    original_count = len(emails)
-                    emails = [e for e in emails if e['msg_id'] not in existing_ids]
-                    new_count = len(emails)
-                    
-                    if original_count > new_count:
-                        logger.info(f"[Scan] Incremental filtering: Skipping {original_count - new_count} already processed emails.")
-                except Exception as inc_err:
-                    logger.error(f"[Scan] Incremental check failed (continuing with full list): {inc_err}")
+        if request.time_range == "auto":
+            # Auto mode: Scan recent emails (48 hours for new users, 24 hours for existing)
+            scan_days = 2 if is_new else 1  # 48 hours for new users, 24 for existing
+            logger.info(f"[Scan] Auto mode: Scanning last {scan_days} day(s) for user {request.user_id}")
 
-                # After a successful scan (even if 0 emails), if it was the free one, mark it as completed
-                if not has_completed_free_scan:
-                    try:
-                        supabase.table('profiles').update({'has_completed_free_scan': True}).eq('id', request.user_id).execute()
-                        logger.info(f"[Scan] Marked free scan as completed for user {request.user_id}")
-                    except Exception as upd_err:
-                        logger.error(f"[Scan] Failed to update free scan status: {upd_err}")
-                
-                # No more fallbacks - we want EXACTLY what's in the time range
-                
+            try:
+                emails, updated_creds, error_msg = gmail_api.fetch_recent_emails(credentials_json=credentials_json, limit=request.limit, days=scan_days)
+                if error_msg:
+                    raise HTTPException(status_code=500, detail=f"Gmail API Error: {error_msg}")
+
+                if updated_creds:
+                    models.save_google_credentials(supabase, request.user_id, updated_creds)
+                    logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
+
+                logger.info(f"[Scan] Auto mode returned {len(emails)} emails")
             except Exception as gmail_error:
                 logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
                 # If it's a 429, we should provide a better message
@@ -647,7 +632,7 @@ def scan_emails(request: ScanRequest):
                     if updated_creds:
                         models.save_google_credentials(supabase, request.user_id, updated_creds)
                         logger.info(f"[Scan] Refreshed credentials saved for user {request.user_id}")
-                        
+
                     logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
                 except Exception as gmail_error:
                     logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
@@ -665,7 +650,7 @@ def scan_emails(request: ScanRequest):
 
                     if updated_creds:
                         models.save_google_credentials(supabase, request.user_id, updated_creds)
-                        
+
                     logger.info(f"[Scan] Gmail API returned {len(emails)} emails")
                 except Exception as gmail_error:
                     logger.error(f"[Scan] Gmail API error: {str(gmail_error)}")
@@ -673,6 +658,37 @@ def scan_emails(request: ScanRequest):
         status_code=500,
                         detail=f"Failed to fetch emails from Gmail. Error: {str(gmail_error)[:100]}"
                     )
+
+        # INCREMENTAL LOGIC: Filter out emails already in database
+        gmail_msg_ids = [e['msg_id'] for e in emails]
+        try:
+            existing_res = supabase.table('summaries')\
+                .select('msg_id')\
+                .eq('user_id', request.user_id)\
+                .in_('msg_id', gmail_msg_ids)\
+                .execute()
+
+            existing_ids = set(item['msg_id'] for item in existing_res.data) if existing_res.data else set()
+
+            # Only process what we don't already have
+            original_count = len(emails)
+            emails = [e for e in emails if e['msg_id'] not in existing_ids]
+            new_count = len(emails)
+
+            if original_count > new_count:
+                logger.info(f"[Scan] Incremental filtering: Skipping {original_count - new_count} already processed emails.")
+        except Exception as inc_err:
+            logger.error(f"[Scan] Incremental check failed (continuing with full list): {inc_err}")
+
+        # After a successful scan (even if 0 emails), if it was the free one, mark it as completed
+        if not has_completed_free_scan:
+            try:
+                supabase.table('profiles').update({'has_completed_free_scan': True}).eq('id', request.user_id).execute()
+                logger.info(f"[Scan] Marked free scan as completed for user {request.user_id}")
+            except Exception as upd_err:
+                logger.error(f"[Scan] Failed to update free scan status: {upd_err}")
+
+        # No more fallbacks - we want EXACTLY what's in the time range
         
         if not emails:
             # No emails found even after fallback attempts
@@ -742,7 +758,10 @@ def scan_emails(request: ScanRequest):
         
         # Prepare detailed summary message
         # Use actual scan_days which may have been adjusted by fallback logic
-        time_desc = f"{scan_days} day(s)" if request.time_range == "auto" else request.time_range
+        if request.time_range == "auto":
+            time_desc = f"{scan_days} day(s)"
+        else:
+            time_desc = request.time_range
         message = f"✅ Scan complete! Found {total_found} emails in the last {time_desc}. "
         
         if processed > 0:

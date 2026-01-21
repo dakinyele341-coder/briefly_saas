@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { getBriefs, getStats, draftReply, saveCredentials, markBriefAsRead, scanEmails, checkBackendHealth, checkCredentials, isAdminEmail, getUnscannedEmails, getUnscannedEmailsCount, sendFeedback, getDashboardStats, getSubscriptionInfo, getRecentProcessedEmails } from '@/utils/api'
+import { getBriefs, getStats, draftReply, saveCredentials, markBriefAsRead, scanEmails, checkBackendHealth, checkCredentials, isAdminEmail, getUnscannedEmails, getUnscannedEmailsCount, sendFeedback, getDashboardStats, getSubscriptionInfo } from '@/utils/api'
 import { StatsDashboard } from '@/components/stats-dashboard'
 import { AchievementBadge, calculateAchievements } from '@/components/achievement-badge'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -94,10 +94,7 @@ function DashboardContent() {
   const [checkingConnection, setCheckingConnection] = useState(true)
   const [draftLoading, setDraftLoading] = useState<string | null>(null)
   const [revealing, setRevealing] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'opportunities' | 'operations' | 'recent-scans'>('opportunities')
-  const [recentScans, setRecentScans] = useState<Summary[]>([])
-  const [totalRecentScans, setTotalRecentScans] = useState(0)
-  const [loadingRecentScans, setLoadingRecentScans] = useState(false)
+  const [activeTab, setActiveTab] = useState<'opportunities' | 'operations'>('opportunities')
   const [draftDialogOpen, setDraftDialogOpen] = useState(false)
   const [currentDraft, setCurrentDraft] = useState<string>('')
   const [currentDraftSubject, setCurrentDraftSubject] = useState<string>('')
@@ -291,26 +288,7 @@ function DashboardContent() {
     }
   }, [])
 
-  // Load recent scans when tab becomes active
-  useEffect(() => {
-    const loadRecentScans = async () => {
-      if (!user || activeTab !== 'recent-scans') return
 
-      setLoadingRecentScans(true)
-      try {
-        const result = await getRecentProcessedEmails(user.id, 100, 0)
-        setRecentScans(result.summaries)
-        setTotalRecentScans(result.total)
-      } catch (error: any) {
-        console.error('Error loading recent scans:', error)
-        toast.error('Failed to load recent scans')
-      } finally {
-        setLoadingRecentScans(false)
-      }
-    }
-
-    loadRecentScans()
-  }, [user, activeTab])
 
   // Check for unscanned emails and send notifications
   useEffect(() => {
@@ -997,21 +975,7 @@ function DashboardContent() {
                     {totalOperations}
                   </Badge>
                 </button>
-                <button
-                  onClick={() => setActiveTab('recent-scans')}
-                  className={cn(
-                    "flex-1 py-4 px-6 text-sm font-bold transition-all flex items-center justify-center gap-2",
-                    activeTab === 'recent-scans'
-                      ? "bg-green-50 text-green-700 border-b-2 border-green-500"
-                      : "text-gray-500 hover:bg-gray-50"
-                  )}
-                >
-                  <Mail className={cn("h-4 w-4", activeTab === 'recent-scans' ? "text-green-500" : "text-gray-400")} />
-                  Recent Scans
-                  <Badge variant="outline" className={cn("ml-2", activeTab === 'recent-scans' ? "bg-green-100 text-green-700" : "")}>
-                    {totalRecentScans}
-                  </Badge>
-                </button>
+
               </div>
 
               {/* Lane Content */}
@@ -1245,144 +1209,6 @@ function DashboardContent() {
                                     </div>
                                     {getCategoryBadge(brief.category)}
                                   </div>
-                                </CardHeader>
-                                <CardContent>
-                                  <p className="text-gray-700 mb-4">{brief.summary}</p>
-
-                                  <div className="flex gap-2">
-                                    <Button
-                                      onClick={() => handleDraftReply(brief, brief.summary)}
-                                      disabled={draftLoading === brief.subject}
-                                      variant="outline"
-                                      size="sm"
-                                      className="font-bold border-2"
-                                    >
-                                      {draftLoading === brief.subject ? (
-                                        <>
-                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                          Generating...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Reply className="h-4 w-4 mr-2" />
-                                          Draft Reply
-                                        </>
-                                      )}
-                                    </Button>
-                                    {brief.gmail_link && (
-                                      <Button
-                                        onClick={() => window.open(brief.gmail_link, '_blank')}
-                                        variant="outline"
-                                        size="sm"
-                                        className="font-bold border-2"
-                                      >
-                                        <ExternalLink className="h-4 w-4 mr-2" />
-                                        View Email
-                                      </Button>
-                                    )}
-                                  </div>
-
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : activeTab === 'recent-scans' ? (
-                /* Recent Scans (All processed emails within 24h) */
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold flex items-center gap-2">
-                      <Mail className="h-5 w-5 text-green-500" />
-                      Recent Scans
-                    </h2>
-                    <span className="text-sm text-gray-500">{totalRecentScans} processed emails</span>
-                  </div>
-
-                  {loadingRecentScans ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3].map((i) => (
-                        <Card key={i} className="animate-pulse">
-                          <CardHeader>
-                            <Skeleton className="h-6 w-3/4" />
-                            <Skeleton className="h-4 w-1/2 mt-2" />
-                          </CardHeader>
-                          <CardContent>
-                            <Skeleton className="h-4 w-full" />
-                            <Skeleton className="h-4 w-5/6 mt-2" />
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : recentScans.length === 0 ? (
-                    <Card className="border-dashed border-2 bg-gray-50/50">
-                      <CardContent className="pt-16 pb-16">
-                        <div className="text-center max-w-sm mx-auto">
-                          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Mail className="h-10 w-10 text-green-500" />
-                          </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2">No Recent Scans</h3>
-                          <p className="text-gray-500">
-                            Your recently processed emails will appear here. Scan your inbox to get started!
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="space-y-4">
-                      {Object.entries(groupSummariesByTime(recentScans)).map(([groupKey, groupItems]) => (
-                        <div key={groupKey} className="mb-10 last:mb-0">
-                          <div className="flex items-center gap-3 mb-6">
-                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 bg-white px-3 py-1 border border-gray-100 rounded-full shadow-sm">
-                              {groupKey}
-                            </span>
-                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
-                          </div>
-                          <div className="space-y-4">
-                            {groupItems.map((brief, index) => (
-                              <Card
-                                key={brief.id || `${groupKey}-${index}`}
-                                className="hover:shadow-md transition-all duration-200 border-l-4 border-l-transparent hover:border-l-green-400"
-                              >
-                                <CardHeader>
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex items-center gap-3 flex-1">
-                                      {getCategoryIcon(brief.category)}
-                                      <div className="flex-1">
-                                        <CardTitle className="text-lg flex items-center justify-between gap-2">
-                                          {brief.subject}
-                                          {getImportanceBadge(brief.importance_score)}
-                                        </CardTitle>
-                                        <CardDescription className="mt-1">
-                                          From: {brief.sender} • {brief.date}
-                                          {brief.lane && (
-                                            <Badge variant="outline" className="ml-2 text-xs">
-                                              {brief.lane === 'opportunity' ? '💰' : '📋'} {brief.lane}
-                                            </Badge>
-                                          )}
-                                        </CardDescription>
-                                      </div>
-                                    </div>
-                                    {getCategoryBadge(brief.category)}
-                                  </div>
-                                  {brief.thesis_match_score !== undefined && (
-                                    <div className="mt-2">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs text-gray-500">Match Score:</span>
-                                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                          <div
-                                            className="bg-green-500 h-2 rounded-full"
-                                            style={{ width: `${brief.thesis_match_score}%` }}
-                                          />
-                                        </div>
-                                        <span className="text-xs font-semibold">{brief.thesis_match_score}%</span>
-                                      </div>
-                                    </div>
-                                  )}
                                 </CardHeader>
                                 <CardContent>
                                   <p className="text-gray-700 mb-4">{brief.summary}</p>
