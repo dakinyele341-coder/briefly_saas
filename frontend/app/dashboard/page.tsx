@@ -104,12 +104,9 @@ function DashboardContent() {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [scanTimeRange, setScanTimeRange] = useState<string>('auto')
-  const [showUnscanned, setShowUnscanned] = useState<boolean>(false)
-  const [unscannedCount, setUnscannedCount] = useState<number>(0)
   const [scanOptionsOpen, setScanOptionsOpen] = useState<boolean>(false)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState<boolean>(false)
   const [viewFilter, setViewFilter] = useState<'latest' | 'all'>('all')
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [canScanPastEmails, setCanScanPastEmails] = useState<boolean>(false)
   const [subscriptionInfo, setSubscriptionInfo] = useState<any>(null)
   const router = useRouter()
@@ -196,28 +193,7 @@ function DashboardContent() {
     }
   }, [user])
 
-  const checkUnscannedCount = useCallback(async () => {
-    if (!user || !gmailConnected) return
 
-    try {
-      const result = await getUnscannedEmailsCount(user.id)
-      setUnscannedCount(result.count)
-
-      // Show notification if threshold reached
-      if (result.threshold_reached && !result.urgent) {
-        toast('📧 You have many unscanned emails in your inbox!', {
-          duration: 5000,
-          icon: '📬',
-        })
-      } else if (result.urgent) {
-        toast.error('🚨 You have 50+ unscanned emails! Consider scanning them.', {
-          duration: 10000,
-        })
-      }
-    } catch (error) {
-      console.error('Error checking unscanned count:', error)
-    }
-  }, [user, gmailConnected])
 
   // Google OAuth login
   const login = useGoogleLogin({
@@ -281,120 +257,11 @@ function DashboardContent() {
     return () => clearInterval(interval)
   }, [autoRefreshEnabled, gmailConnected, user, loadBriefs, loadStats])
 
-  // Check notification permission on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission)
-    }
-  }, [])
 
 
 
-  // Check for unscanned emails and send notifications
-  useEffect(() => {
-    const checkUnscannedEmails = async () => {
-      if (!user || !gmailConnected) return
 
-      try {
-        const unscannedData = await getUnscannedEmails(user.id)
-        const count = unscannedData.count || 0
-        setUnscannedCount(count)
 
-        // Send notification if count is high (>=15) and permission granted
-        if (count >= 15 && notificationPermission === 'granted') {
-          showUnscannedNotification(count)
-        }
-      } catch (error) {
-        console.error('Error checking unscanned emails:', error)
-      }
-    }
-
-    // Check immediately and then every 5 minutes
-    checkUnscannedEmails()
-    const interval = setInterval(checkUnscannedEmails, 5 * 60 * 1000) // 5 minutes
-
-    return () => clearInterval(interval)
-  }, [user, gmailConnected, notificationPermission])
-
-  // Notification functions
-  const requestNotificationPermission = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      const permission = await Notification.requestPermission()
-      setNotificationPermission(permission)
-      return permission === 'granted'
-    }
-    return false
-  }
-
-  const showUnscannedNotification = (count: number) => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      const notification = new Notification('Briefly - High Email Volume', {
-        body: `You have ${count} unscanned emails in your Gmail. Consider scanning them for opportunities!`,
-        icon: '/favicon.ico',
-        tag: 'unscanned-emails',
-        requireInteraction: true
-      })
-
-      notification.onclick = () => {
-        window.focus()
-        notification.close()
-      }
-
-      // Auto-close after 10 seconds
-      setTimeout(() => notification.close(), 10000)
-    }
-  }
-
-  const loadUnscannedCount = async () => {
-    if (!user || !gmailConnected) {
-      setUnscannedCount(0)
-      return
-    }
-
-    try {
-      const unscannedData = await getUnscannedEmails(user.id)
-      setUnscannedCount(unscannedData.count)
-
-      // Show browser notification if count is high
-      if (unscannedData.count >= 15 && unscannedData.count <= 20) {
-        showNotification(`You have ${unscannedData.count} unscanned emails waiting!`, {
-          body: 'Consider scanning your emails to stay on top of opportunities.',
-          icon: '/favicon.ico'
-        })
-      } else if (unscannedData.count > 20) {
-        showNotification(`Alert: ${unscannedData.count} unscanned emails!`, {
-          body: 'You have many unscanned emails. Time to scan!',
-          icon: '/favicon.ico'
-        })
-      }
-    } catch (error: any) {
-      console.error('Error loading unscanned count:', error)
-      setUnscannedCount(0)
-    }
-  }
-
-  // Browser notification helper
-  const showNotification = (title: string, options: NotificationOptions) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, options)
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          new Notification(title, options)
-        }
-      })
-    }
-  }
-
-  const handleToggleUnscanned = useCallback(() => {
-    setShowUnscanned(!showUnscanned)
-    if (!showUnscanned) {
-      // When enabling unscanned view, request notification permission if not granted
-      if (notificationPermission === 'default') {
-        requestNotificationPermission()
-      }
-    }
-  }, [showUnscanned, notificationPermission])
 
   const handleRefresh = useCallback(async () => {
     if (!user) return
@@ -485,14 +352,13 @@ function DashboardContent() {
 
       await loadBriefs()
       await loadStats()
-      await checkUnscannedCount()
       setLastRefreshTime(new Date())
     } catch (error: any) {
       toast.error(error.message || 'Failed to scan emails')
     } finally {
       setRefreshing(false)
     }
-  }, [user, loadBriefs, loadStats, checkUnscannedCount, subscriptionInfo, router])
+  }, [user, loadBriefs, loadStats, subscriptionInfo, router])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -715,8 +581,7 @@ function DashboardContent() {
         // Load all data in parallel
         await Promise.all([
           loadBriefs(),
-          loadStats(),
-          checkUnscannedCount()
+          loadStats()
         ])
 
         setLastRefreshTime(new Date())
@@ -738,7 +603,7 @@ function DashboardContent() {
   if (loading || checkingConnection) {
     return (
       <>
-        <MenuBar unscannedCount={unscannedCount} isAdmin={isAdmin} />
+        <MenuBar isAdmin={isAdmin} />
         <div className="lg:ml-64 flex min-h-screen items-center justify-center">
           <div className="w-full max-w-7xl mx-auto p-8 space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -763,7 +628,7 @@ function DashboardContent() {
 
   return (
     <>
-      <MenuBar unscannedCount={unscannedCount} isAdmin={isAdmin} />
+      <MenuBar isAdmin={isAdmin} />
       <div className="lg:ml-64 min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 flex items-center justify-between">

@@ -16,9 +16,6 @@ interface QuickActionsProps {
   gmailConnected: boolean
   scanTimeRange: string
   onScanTimeRangeChange: (range: string) => void
-  unscannedCount: number
-  onToggleUnscanned: () => void
-  showUnscanned: boolean
   isAdmin: boolean
   canScanPastEmails: boolean
 }
@@ -34,9 +31,6 @@ export function QuickActions({
   gmailConnected,
   scanTimeRange,
   onScanTimeRangeChange,
-  unscannedCount,
-  onToggleUnscanned,
-  showUnscanned,
   isAdmin,
   canScanPastEmails,
 }: QuickActionsProps) {
@@ -102,22 +96,6 @@ export function QuickActions({
             )}
           </Button>
 
-          {/* Unscanned Emails Toggle */}
-          <Button
-            onClick={onToggleUnscanned}
-            variant={showUnscanned ? "default" : "outline"}
-            size="sm"
-            className="gap-2"
-          >
-            <Mail className="h-4 w-4" />
-            Unscanned
-            {unscannedCount > 0 && (
-              <Badge variant={unscannedCount >= 15 ? "destructive" : "secondary"}>
-                {unscannedCount}
-              </Badge>
-            )}
-          </Button>
-
           <Button
             onClick={onRefresh}
             disabled={refreshing || scanning}
@@ -169,4 +147,3 @@ export function QuickActions({
     </div>
   )
 }
-
