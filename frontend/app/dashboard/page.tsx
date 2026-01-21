@@ -105,6 +105,8 @@ function DashboardContent() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [scanTimeRange, setScanTimeRange] = useState<string>('auto')
   const [scanOptionsOpen, setScanOptionsOpen] = useState<boolean>(false)
+  const [showUnscanned, setShowUnscanned] = useState<boolean>(false)
+  const [unscannedCount, setUnscannedCount] = useState<number>(0)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState<boolean>(false)
   const [viewFilter, setViewFilter] = useState<'latest' | 'all'>('all')
   const [canScanPastEmails, setCanScanPastEmails] = useState<boolean>(false)
@@ -352,13 +354,55 @@ function DashboardContent() {
 
       await loadBriefs()
       await loadStats()
+      // Update unscanned count for new users after scan
+      if (canScanPastEmails) {
+        await checkUnscannedCount()
+      }
       setLastRefreshTime(new Date())
     } catch (error: any) {
       toast.error(error.message || 'Failed to scan emails')
     } finally {
       setRefreshing(false)
     }
-  }, [user, loadBriefs, loadStats, subscriptionInfo, router])
+  }, [user, loadBriefs, loadStats, subscriptionInfo, router, canScanPastEmails, checkUnscannedCount])
+
+  const checkUnscannedCount = useCallback(async () => {
+    if (!user || !gmailConnected || !canScanPastEmails) return
+
+    try {
+      const result = await getUnscannedEmailsCount(user.id)
+      setUnscannedCount(result.count)
+    } catch (error) {
+      console.error('Error checking unscanned count:', error)
+    }
+  }, [user, gmailConnected, canScanPastEmails])
+
+  const handleToggleUnscanned = useCallback(() => {
+    setShowUnscanned(!showUnscanned)
+  }, [showUnscanned])
+
+  // Check for unscanned emails periodically for new users
+  useEffect(() => {
+    if (!canScanPastEmails) return
+
+    const checkUnscannedEmails = async () => {
+      if (!user || !gmailConnected) return
+
+      try {
+        const unscannedData = await getUnscannedEmails(user.id)
+        const count = unscannedData.count || 0
+        setUnscannedCount(count)
+      } catch (error) {
+        console.error('Error checking unscanned emails:', error)
+      }
+    }
+
+    // Check immediately and then every 5 minutes
+    checkUnscannedEmails()
+    const interval = setInterval(checkUnscannedEmails, 5 * 60 * 1000) // 5 minutes
+
+    return () => clearInterval(interval)
+  }, [user, gmailConnected, canScanPastEmails])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -658,15 +702,35 @@ function DashboardContent() {
 
                   {/* SCAN BUTTON - Header only. Always performs a fresh scan. */}
                   {(isAdmin || (subscriptionInfo?.subscription_status === 'active' || subscriptionInfo?.subscription_status === 'trial') || !((subscriptionInfo as any)?.has_completed_free_scan)) ? (
-                    <Button
-                      onClick={() => handleScan(true)}
-                      variant="default"
-                      disabled={refreshing}
-                      className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''}`}
-                    >
-                      <Mail className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                      Scan Emails
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => handleScan(true)}
+                        variant="default"
+                        disabled={refreshing}
+                        className={`transition-all shadow-md hover:shadow-lg ${!refreshing ? 'animate-pulse hover:animate-none' : ''}`}
+                      >
+                        <Mail className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                        Scan Emails
+                      </Button>
+
+                      {/* Unscanned Emails Toggle - Only for new users */}
+                      {canScanPastEmails && (
+                        <Button
+                          onClick={handleToggleUnscanned}
+                          variant={showUnscanned ? "default" : "outline"}
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <Mail className="h-4 w-4" />
+                          Unscanned
+                          {unscannedCount > 0 && (
+                            <Badge variant={unscannedCount >= 15 ? "destructive" : "secondary"}>
+                              {unscannedCount}
+                            </Badge>
+                          )}
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     /* Free tier user post-free-scan -> Upgrade Required */
                     <Button

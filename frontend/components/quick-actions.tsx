@@ -18,6 +18,9 @@ interface QuickActionsProps {
   onScanTimeRangeChange: (range: string) => void
   isAdmin: boolean
   canScanPastEmails: boolean
+  unscannedCount?: number
+  onToggleUnscanned?: () => void
+  showUnscanned?: boolean
 }
 
 export function QuickActions({
@@ -33,6 +36,9 @@ export function QuickActions({
   onScanTimeRangeChange,
   isAdmin,
   canScanPastEmails,
+  unscannedCount,
+  onToggleUnscanned,
+  showUnscanned,
 }: QuickActionsProps) {
   return (
     <div className="flex gap-2 flex-wrap items-center">
@@ -95,6 +101,24 @@ export function QuickActions({
               </>
             )}
           </Button>
+
+          {/* Unscanned Emails Toggle - Only for new users */}
+          {canScanPastEmails && onToggleUnscanned && (
+            <Button
+              onClick={onToggleUnscanned}
+              variant={showUnscanned ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+            >
+              <Mail className="h-4 w-4" />
+              Unscanned
+              {unscannedCount !== undefined && unscannedCount > 0 && (
+                <Badge variant={unscannedCount >= 15 ? "destructive" : "secondary"}>
+                  {unscannedCount}
+                </Badge>
+              )}
+            </Button>
+          )}
 
           <Button
             onClick={onRefresh}
