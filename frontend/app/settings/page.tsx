@@ -24,12 +24,16 @@ const ROLE_EXAMPLES: Record<UserRole, string> = {
   Investor: 'e.g., B2B SaaS, Pre-Seed, Fintech, Africa, Marketplace',
   'Agency Owner': 'e.g., Client Retainer, Service Lead, Brand Pitch, Outreach, Project Inquiry',
   'Founder/Business Owner': 'e.g., B2B Lead, Wholesale, Bulk Order, Hiring, Acquisition',
+  'Operator / Executive': 'e.g., Team Management, Strategic Planning, Operations, Budget, Compliance',
+  Other: 'e.g., Personal, Miscellaneous, Custom Categories',
 }
 
 const ROLE_INSTRUCTIONS: Record<UserRole, string> = {
   Investor: 'Enter investment focus areas, industries, stages, and geographies. The AI uses these to hunt for pitch decks and funding opportunities.',
   'Agency Owner': 'Enter your agency niche, service types, and ideal client profile. The AI uses these to identify high-value service leads and partnership inquiries.',
   'Founder/Business Owner': 'Enter business opportunities, lead types, and partnership categories. The AI uses these to identify deals, partnerships, and growth opportunities.',
+  'Operator / Executive': 'Enter operational focus areas, team priorities, and strategic objectives. The AI uses these to identify important updates, decisions, and operational matters.',
+  Other: 'Enter your custom categories and focus areas. The AI uses these to personalize email prioritization based on your specific needs.',
 }
 
 function SettingsContent() {
