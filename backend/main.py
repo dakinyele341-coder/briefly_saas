@@ -107,7 +107,9 @@ class FeedbackRequest(BaseModel):
 class SummaryResponse(BaseModel):
     id: Optional[str] = None
     summary: str
+    executive_summary: Optional[str] = None  # New Briefly AI field
     category: str
+    importance_level: Optional[str] = None  # New Briefly AI field with emojis
     subject: str
     sender: str
     date: str
@@ -116,6 +118,12 @@ class SummaryResponse(BaseModel):
     gmail_link: Optional[str] = None
     is_read: Optional[bool] = False
     created_at: Optional[str] = None
+    action_required: Optional[str] = None  # New Briefly AI field
+    deadlines: Optional[str] = None  # New Briefly AI field
+    risks_leverage: Optional[str] = None  # New Briefly AI field
+    sender_goals: Optional[str] = None  # New Briefly AI field
+    urgency_signals: Optional[str] = None  # New Briefly AI field
+    reply_draft: Optional[str] = None  # New Briefly AI field
 
 
 class ScanResponse(BaseModel):

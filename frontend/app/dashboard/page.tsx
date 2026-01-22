@@ -39,46 +39,80 @@ const LANE_A_TITLES: Record<UserRole, string> = {
   Investor: 'Opportunities',
   'Agency Owner': 'Opportunities',
   'Founder/Business Owner': 'Opportunities',
+  'Operator / Executive': 'Opportunities',
+  'Other': 'Opportunities',
 }
 
 import { User } from '@supabase/supabase-js'
 
-const getImportanceBadge = (score: number = 3) => {
+const getImportanceBadge = (importanceLevel?: string, score?: number) => {
+  // First try to use the new Briefly AI importance level
+  if (importanceLevel) {
+    switch (importanceLevel) {
+      case '🔴 Critical — act now':
+        return (
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold border border-red-200 animate-pulse">
+            🔴 Critical
+          </div>
+        )
+      case '🟠 Important — review today':
+        return (
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
+            🟠 Important
+          </div>
+        )
+      case '🟡 Useful — review later':
+        return (
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold border border-yellow-200">
+            🟡 Useful
+          </div>
+        )
+      case '⚪ Low priority — optional':
+        return (
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-bold border border-gray-200">
+            ⚪ Low priority
+          </div>
+        )
+    }
+  }
+
+  // Fallback to old scoring system if importance_level not available
   switch (score) {
+    case 9:
+    case 10:
+      return (
+        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold border border-red-200 animate-pulse">
+          🔴 Critical
+        </div>
+      )
+    case 7:
+    case 8:
+      return (
+        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
+          🟠 Important
+        </div>
+      )
     case 5:
+    case 6:
       return (
-        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold uppercase tracking-wider animate-pulse border border-red-200">
-          <Flame className="h-3 w-3" />
-          Critical
-        </div>
-      )
-    case 4:
-      return (
-        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider border border-orange-200">
-          <Star className="h-3 w-3" />
-          Important
-        </div>
-      )
-    case 3:
-      return (
-        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-200">
-          <TrendingUp className="h-3 w-3" />
-          Standard
+        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold border border-yellow-200">
+          🟡 Useful
         </div>
       )
     case 2:
+    case 3:
+    case 4:
       return (
-        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-bold uppercase tracking-wider border border-gray-200">
-          <Minus className="h-3 w-3" />
-          Low Priority
+        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-bold border border-gray-200">
+          ⚪ Low priority
         </div>
       )
     case 1:
+    case 0:
     default:
       return (
-        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 text-[10px] font-medium uppercase tracking-wider border border-gray-100">
-          <Info className="h-3 w-3" />
-          Noise
+        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 text-gray-400 text-xs font-medium border border-gray-100">
+          ⚪ Low priority
         </div>
       )
   }
@@ -951,7 +985,7 @@ function DashboardContent() {
                                       <div className="flex-1">
                                         <CardTitle className="text-lg flex items-center justify-between gap-2">
                                           {brief.subject}
-                                          {getImportanceBadge(brief.importance_score)}
+                                          {getImportanceBadge(brief.importance_level, brief.importance_score)}
                                         </CardTitle>
                                         <CardDescription className="mt-1">
                                           From: {brief.sender} • {brief.date}
@@ -1094,7 +1128,7 @@ function DashboardContent() {
                                       <div className="flex-1">
                                         <CardTitle className="text-lg flex items-center justify-between gap-2">
                                           {brief.subject}
-                                          {getImportanceBadge(brief.importance_score)}
+                                          {getImportanceBadge(brief.importance_level, brief.importance_score)}
                                         </CardTitle>
                                         <CardDescription className="mt-1">
                                           From: {brief.sender} • {brief.date}
