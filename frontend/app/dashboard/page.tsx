@@ -24,6 +24,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { MenuBar } from '@/components/menu-bar'
 import { FeedbackDialog } from '@/components/feedback-dialog'
 import { TrialStatusBanner } from '@/components/trial-status-banner'
+import { OnboardingFlow } from '@/components/onboarding-flow'
 
 // Import shared types
 import { Summary, UserRole } from '@/types'
@@ -111,6 +112,7 @@ function DashboardContent() {
   const [viewFilter, setViewFilter] = useState<'latest' | 'all'>('all')
   const [canScanPastEmails, setCanScanPastEmails] = useState<boolean>(false)
   const [subscriptionInfo, setSubscriptionInfo] = useState<any>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const router = useRouter()
 
   const [page, setPage] = useState(1)
@@ -543,10 +545,10 @@ function DashboardContent() {
           setCanScanPastEmails(true) // Admin can always scan past emails
         }
 
-        // Load user profile to get role, keywords, and thesis
+        // Load user profile to check onboarding completion
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role, keywords, thesis')
+          .select('role, current_focus, critical_categories, communication_style, onboarding_completed')
           .eq('id', currentUser.id)
           .single()
 
@@ -554,19 +556,10 @@ function DashboardContent() {
           setUserRole(profile.role as UserRole)
         }
 
-        // Check if user has thesis set up
-        if (!profile?.thesis || profile.thesis.trim().length === 0) {
-          // Redirect to settings if no thesis
-          toast.error('Please set up your professional thesis first')
-          router.push('/settings')
-          return
-        }
-
-        // Check if user has keywords set up
-        if (!profile?.keywords || (Array.isArray(profile.keywords) && profile.keywords.length === 0)) {
-          // Redirect to settings if no keywords
-          toast.error('Please set up your thesis keywords first')
-          router.push('/settings')
+        // Check if user has completed onboarding
+        if (!profile?.onboarding_completed) {
+          setShowOnboarding(true)
+          setLoading(false)
           return
         }
 
@@ -651,6 +644,20 @@ function DashboardContent() {
           </div>
         </div>
       </>
+    )
+  }
+
+  const handleOnboardingComplete = (data: any) => {
+    setShowOnboarding(false)
+    // Reload the dashboard data
+    window.location.reload()
+  }
+
+  if (showOnboarding) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <OnboardingFlow onComplete={handleOnboardingComplete} />
+      </div>
     )
   }
 

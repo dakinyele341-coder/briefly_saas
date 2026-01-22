@@ -36,11 +36,9 @@ function SettingsContent() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [keywords, setKeywords] = useState<string[]>([])
   const [userRole, setUserRole] = useState<UserRole>('Investor')
-  const [thesis, setThesis] = useState<string>('')
 
-  // New Persona-based fields
+  // Persona-based fields
   const [currentFocus, setCurrentFocus] = useState<string[]>([])
   const [criticalCategories, setCriticalCategories] = useState<string[]>([])
   const [communicationStyle, setCommunicationStyle] = useState<string>('')
@@ -68,29 +66,16 @@ function SettingsContent() {
         // Load user profile from Supabase
         const { data: profile } = await supabase
           .from('profiles')
-          .select('keywords, role, thesis, current_focus, critical_categories, communication_style, business_context')
+          .select('role, current_focus, critical_categories, communication_style, business_context')
           .eq('id', currentUser.id)
           .single()
 
         if (profile) {
-          // Parse keywords
-          if (profile.keywords) {
-            if (typeof profile.keywords === 'string') {
-              setKeywords(profile.keywords.split(',').map(k => k.trim()).filter(k => k))
-            } else if (Array.isArray(profile.keywords)) {
-              setKeywords(profile.keywords)
-            }
-          }
-
           if (profile.role) {
             setUserRole(profile.role as UserRole)
           }
 
-          if (profile.thesis) {
-            setThesis(profile.thesis)
-          }
-
-          // Load new persona fields
+          // Load persona fields
           if (profile.current_focus) {
             setCurrentFocus(Array.isArray(profile.current_focus) ? profile.current_focus : [])
           }
@@ -193,11 +178,6 @@ function SettingsContent() {
   const handleSave = async () => {
     if (!user) return
 
-    if (keywords.length === 0) {
-      toast.error('Please add at least one keyword')
-      return
-    }
-
     setSaving(true)
     try {
       const supabase = createClient()
@@ -207,9 +187,7 @@ function SettingsContent() {
         .from('profiles')
         .upsert({
           id: user.id,
-          keywords: keywords,
           role: userRole,
-          thesis: thesis.trim(),
           current_focus: currentFocus,
           critical_categories: criticalCategories,
           communication_style: communicationStyle,
@@ -273,94 +251,6 @@ function SettingsContent() {
           </Button>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Main Settings Card */}
-            <Card className="shadow-xl border-0">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-yellow-50 rounded-t-lg">
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Sparkles className="h-6 w-6 text-yellow-500" />
-                  Thesis Setup
-                </CardTitle>
-                <CardDescription className="text-base">
-                  Configure your professional keywords and role to help AI find the right opportunities
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Role Selection */}
-                <div>
-                  <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-yellow-500" />
-                    Your Role
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {(['Investor', 'Agency Owner', 'Founder/Business Owner'] as UserRole[]).map((role) => (
-                      <Button
-                        key={role}
-                        variant={userRole === role ? 'default' : 'outline'}
-                        onClick={() => setUserRole(role)}
-                        className={`w-full h-12 transition-all ${userRole === role
-                          ? 'bg-gradient-to-r from-blue-600 to-yellow-500 hover:from-blue-700 hover:to-yellow-600 shadow-md'
-                          : 'hover:border-blue-300'
-                          }`}
-                      >
-                        {role}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Keywords Input */}
-                <div>
-                  <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-                    <Info className="h-4 w-4 text-blue-500" />
-                    Keywords / Tags
-                  </label>
-                  <TagInput
-                    tags={keywords}
-                    onChange={setKeywords}
-                    placeholder="Add keywords (press Enter)"
-                    className="min-h-[120px] border-2 border-gray-200 focus-within:border-blue-400 transition-colors"
-                  />
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs font-semibold text-blue-900 mb-1">💡 Examples:</p>
-                    <p className="text-xs text-blue-700">
-                      {ROLE_EXAMPLES[userRole]}
-                    </p>
-                  </div>
-                  <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <p className="text-sm text-yellow-900">
-                      {ROLE_INSTRUCTIONS[userRole]}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Save Button */}
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push('/dashboard')}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={saving || keywords.length === 0}
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Settings
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Additional Settings Cards */}
             <div className="space-y-6">
 
@@ -511,31 +401,6 @@ function SettingsContent() {
                   />
                   <p className="text-xs text-gray-500">
                     This context helps the AI better understand your situation and provide more relevant insights.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Thesis Edit Card */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-lg">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <Edit className="h-5 w-5 text-purple-500" />
-                    Thesis Statement
-                  </CardTitle>
-                  <CardDescription>
-                    Your professional thesis helps AI understand your focus areas
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Describe your professional thesis, investment focus, or business goals..."
-                    value={thesis}
-                    onChange={(e) => setThesis(e.target.value)}
-                    rows={4}
-                    className="resize-none"
-                  />
-                  <p className="text-xs text-gray-500">
-                    This helps the AI provide more relevant email summaries and opportunities.
                   </p>
                 </CardContent>
               </Card>
