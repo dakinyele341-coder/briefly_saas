@@ -93,7 +93,7 @@ function DashboardContent() {
   const [gmailConnected, setGmailConnected] = useState(false)
   const [checkingConnection, setCheckingConnection] = useState(true)
   const [draftLoading, setDraftLoading] = useState<string | null>(null)
-  const [revealing, setRevealing] = useState<string | null>(null)
+
   const [activeTab, setActiveTab] = useState<'opportunities' | 'operations'>('opportunities')
   const [draftDialogOpen, setDraftDialogOpen] = useState(false)
   const [currentDraft, setCurrentDraft] = useState<string>('')
@@ -118,7 +118,7 @@ function DashboardContent() {
   const [totalOpportunities, setTotalOpportunities] = useState(0)
   const [totalOperations, setTotalOperations] = useState(0)
 
-  // Grouping helper
+  // Grouping helper - sorts emails by importance (critical to low)
   const groupSummariesByTime = useCallback((summaries: Summary[]) => {
     if (viewFilter === 'latest' && summaries.length > 0) {
       // Find the most recent created_at
@@ -130,14 +130,23 @@ function DashboardContent() {
         return mostRecent - time < buffer
       })
 
+      // Sort by importance score (critical to low)
+      latestItems.sort((a, b) => ((b.importance_score ?? 0) - (a.importance_score ?? 0)))
+
       const groups: Record<string, Summary[]> = { 'Latest Analysis': latestItems }
       return groups
     }
 
     const groups: Record<string, Summary[]> = {}
 
-    // Sort by created_at descending
+    // Sort by importance score first (critical to low), then by created_at descending
     const sorted = [...summaries].sort((a, b) => {
+      const scoreA = a.importance_score ?? 0
+      const scoreB = b.importance_score ?? 0
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA // Higher score first
+      }
+      // If scores are equal, sort by created_at descending
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
       return dateB - dateA
@@ -283,6 +292,17 @@ function DashboardContent() {
     }
   }, [user, loadBriefs, loadStats])
 
+  const checkUnscannedCount = useCallback(async () => {
+    if (!user || !gmailConnected || !canScanPastEmails) return
+
+    try {
+      const result = await getUnscannedEmailsCount(user.id)
+      setUnscannedCount(result.count)
+    } catch (error) {
+      console.error('Error checking unscanned count:', error)
+    }
+  }, [user, gmailConnected, canScanPastEmails])
+
   const handleScan = useCallback(async (resetHistory: boolean = false) => {
     if (!user) return
 
@@ -366,17 +386,6 @@ function DashboardContent() {
     }
   }, [user, loadBriefs, loadStats, subscriptionInfo, router, canScanPastEmails, checkUnscannedCount])
 
-  const checkUnscannedCount = useCallback(async () => {
-    if (!user || !gmailConnected || !canScanPastEmails) return
-
-    try {
-      const result = await getUnscannedEmailsCount(user.id)
-      setUnscannedCount(result.count)
-    } catch (error) {
-      console.error('Error checking unscanned count:', error)
-    }
-  }, [user, gmailConnected, canScanPastEmails])
-
   const handleToggleUnscanned = useCallback(() => {
     setShowUnscanned(!showUnscanned)
   }, [showUnscanned])
@@ -428,32 +437,7 @@ function DashboardContent() {
     login()
   }
 
-  const handleRevealOpportunity = async (brief: Summary) => {
-    if (!user || !brief.id) return
 
-    setRevealing(brief.id)
-    try {
-      await markBriefAsRead(brief.id, user.id)
-
-      // Update local state
-      setOpportunities(prev =>
-        prev.map(b => b.id === brief.id ? { ...b, is_read: true } : b)
-      )
-
-      // Update stats
-      await loadStats()
-
-      toast.success('✨ Opportunity revealed!', {
-        icon: '🎉',
-        duration: 2000,
-      })
-    } catch (error: any) {
-      console.error('Error revealing opportunity:', error)
-      toast.error(error.message || 'Failed to reveal opportunity')
-    } finally {
-      setRevealing(null)
-    }
-  }
 
   const handleDraftReply = async (brief: Summary, emailBody: string) => {
     if (!user) return
@@ -950,8 +934,8 @@ function DashboardContent() {
                                 key={brief.id || `${groupKey}-${index}`}
                                 className="relative hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-yellow-400"
                               >
-                                {!brief.is_read && (
-                                  <div className="absolute top-2 right-2 h-3 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
+                                {(brief.importance_score ?? 0) >= 7 && (
+                                  <div className="absolute top-2 right-2 h-3 w-3 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50" />
                                 )}
                                 <CardHeader>
                                   <div className="flex items-start justify-between">
@@ -985,66 +969,40 @@ function DashboardContent() {
                                   )}
                                 </CardHeader>
                                 <CardContent>
-                                  <div className={brief.is_read ? 'revealed' : 'blur-sm pointer-events-none select-none'}>
-                                    <p className="text-gray-700 mb-4">{brief.summary}</p>
-                                  </div>
+                                  <p className="text-gray-700 mb-4">{brief.summary}</p>
 
-                                  {!brief.is_read && (
+                                  <div className="flex gap-2">
                                     <Button
-                                      onClick={() => handleRevealOpportunity(brief)}
-                                      disabled={revealing === brief.id}
-                                      variant="default"
-                                      className="w-full mb-4 font-bold"
+                                      onClick={() => handleDraftReply(brief, brief.summary)}
+                                      disabled={draftLoading === brief.subject}
+                                      variant="outline"
+                                      size="sm"
+                                      className="font-bold border-2"
                                     >
-                                      {revealing === brief.id ? (
+                                      {draftLoading === brief.subject ? (
                                         <>
                                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                          Revealing...
+                                          Generating...
                                         </>
                                       ) : (
                                         <>
-                                          <Sparkles className="h-4 w-4 mr-2" />
-                                          Reveal Opportunity
+                                          <Reply className="h-4 w-4 mr-2" />
+                                          Draft Reply
                                         </>
                                       )}
                                     </Button>
-                                  )}
-
-                                  {brief.is_read && (
-                                    <div className="flex gap-2">
+                                    {brief.gmail_link && (
                                       <Button
-                                        onClick={() => handleDraftReply(brief, brief.summary)}
-                                        disabled={draftLoading === brief.subject}
+                                        onClick={() => window.open(brief.gmail_link, '_blank')}
                                         variant="outline"
                                         size="sm"
                                         className="font-bold border-2"
                                       >
-                                        {draftLoading === brief.subject ? (
-                                          <>
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Generating...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Reply className="h-4 w-4 mr-2" />
-                                            Draft Reply
-                                          </>
-                                        )}
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View Email
                                       </Button>
-                                      {brief.gmail_link && (
-                                        <Button
-                                          onClick={() => window.open(brief.gmail_link, '_blank')}
-                                          variant="outline"
-                                          size="sm"
-                                          className="font-bold border-2"
-                                        >
-                                          <ExternalLink className="h-4 w-4 mr-2" />
-                                          View Email
-                                        </Button>
-                                      )}
-                                    </div>
-                                  )}
-
+                                    )}
+                                  </div>
                                 </CardContent>
                               </Card>
                             ))}

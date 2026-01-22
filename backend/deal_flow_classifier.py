@@ -21,29 +21,43 @@ class UserRole(str, Enum):
 
 def classify_email_dual_pipeline(
     email_content: str,
-    keywords: List[str],
-    user_role: UserRole,
+    user_profile: Dict,
     pdf_analysis_allowed: bool = False
 ) -> Dict:
     """
     Dual-Pipeline Classifier: Step 1 (The Sorter) + Step 2 (The Scorer)
-    
+    Uses persona-based profile instead of keywords.
+
+    Args:
+        email_content: The email content to analyze
+        user_profile: Dictionary containing user's persona data:
+            - role: User's professional role
+            - current_focus: List of current priorities
+            - critical_categories: List of categories that are critical
+            - communication_style: Preferred communication style
+            - business_context: Business goals and context
+        pdf_analysis_allowed: Whether advanced PDF analysis is enabled
+
     Returns:
         {
             'lane': 'opportunity' | 'operation',
-            'category': 'CRITICAL' | 'HIGH' | 'LOW' | 'OPPORTUNITY',
+            'category': 'CRITICAL' | 'HIGH' | 'STANDARD' | 'LOW',
+            'importance_score': int (0-10),
             'summary': str,
             'thesis_match_score': float (0-100, only for Lane A),
             'extracted_info': dict
         }
     """
     client = gemini_ai.get_genai_client()
-    
-    # Build keywords string
-    keywords_str = ", ".join(keywords) if keywords else "None specified"
 
-    # Handle user_role as either enum or string
-    if isinstance(user_role, str):
+    # Extract persona data with defaults
+    role = user_profile.get('role', 'Professional')
+    current_focus = user_profile.get('current_focus', [])
+    critical_categories = user_profile.get('critical_categories', [])
+    business_context = user_profile.get('business_context', '')
+
+    # Handle user_role as either enum or string for backward compatibility
+    if isinstance(role, str):
         # Convert string to enum
         role_mapping = {
             "Investor": UserRole.INVESTOR,
@@ -51,11 +65,11 @@ def classify_email_dual_pipeline(
             "Founder": UserRole.FOUNDER,
             "Founder/Business Owner": UserRole.FOUNDER
         }
-        user_role_enum = role_mapping.get(user_role, UserRole.INVESTOR)
-        user_role_display = user_role
+        user_role_enum = role_mapping.get(role, UserRole.INVESTOR)
+        user_role_display = role
     else:
-        user_role_enum = user_role
-        user_role_display = user_role.value
+        user_role_enum = role
+        user_role_display = role.value
 
     # Role-specific context
     role_context = {
@@ -75,7 +89,12 @@ def classify_email_dual_pipeline(
 
     context = role_context.get(user_role_enum, role_context[UserRole.INVESTOR])
 
-    prompt = f"""You are analyzing an email for a {user_role_display} with these keywords: {keywords_str}
+    prompt = f"""You are an Executive Assistant for a {user_role_display}.
+
+USER PROFILE:
+- Current Priorities: {', '.join(current_focus) if current_focus else 'General business development'}
+- Critical Categories (must not miss): {', '.join(critical_categories) if critical_categories else 'Critical business matters'}
+- Business Context: {business_context if business_context else 'No additional context provided'}
 
 FIRST: Extract and understand ALL content from this email including:
 - Subject line and sender information
@@ -85,49 +104,65 @@ FIRST: Extract and understand ALL content from this email including:
 DOCUMENT ANALYSIS POLICY: Advanced document attachment analysis (PDFs, pitch decks, business plans, financial documents, etc.) is {'ENABLED' if pdf_analysis_allowed else 'DISABLED'}.
 {'You CAN analyze document attachments and extract insights from PDFs, pitch decks, and other business documents to enhance your classification.' if pdf_analysis_allowed else 'You CANNOT analyze document attachments. If emails contain PDFs or documents, classify based only on the text content. Document analysis requires Pro plan subscription.'}
 
-Analyze the complete email content including any mentioned or attached documents for comprehensive evaluation.
-
 Email Content:
 {email_content}
 
 STEP 1 - THE GATEKEEPER (LANE DETERMINATION):
 You MUST decide if the email belongs in LANE A (Opportunity) or LANE B (Operation).
-- LANE A (Opportunity): Direct deals, partnership inquiries, sponsorship offers, investment opportunities, pitch decks, or high-value collaborations.
-- LANE B (Operation): Administrative emails, newsletters, non-urgent updates, general information, or routine business operations.
 
-IMPORTANT: You are the final judge of which lane an email belongs to. If an email represents a potential "Money-Making" or "Strategic" opportunity, place it in LANE A. If it is purely operational or low-priority "Noise", place it in LANE B.
+LANE A (Opportunity) includes:
+- Direct matches to Current Priorities
+- Strategic partnerships or deals
+- Investment opportunities or funding requests
+- High-value business collaborations
+- Pitch decks or business proposals
+- Revenue-generating opportunities
+
+LANE B (Operation) includes:
+- Administrative tasks and updates
+- Newsletters and promotional content
+- Routine business communications
+- Non-urgent updates and notifications
+- General information and announcements
+
+IMPORTANT: If an email represents a potential "Money-Making" or "Strategic" opportunity that aligns with the user's priorities, place it in LANE A. Purely operational or low-priority content goes in LANE B.
 
 STEP 2 - THE SCORER:
 If LANE A (Opportunity):
-- Calculate thesis_match_score (0-100) based on how well the email matches the user's keywords and role.
-- Higher score = better match (e.g., Investor with "B2B SaaS" keywords receiving "SaaS Pitch Deck" = 95)
+- Calculate thesis_match_score (0-100) based on alignment with user's Current Priorities and role.
+- Perfect matches to priorities = 90-100
+- Strong alignment but not exact = 70-89
+- Moderate relevance = 50-69
+- Weak connection = 0-49
 - Category should be "OPPORTUNITY"
 
 If LANE B (Operation):
-- Classify priority: "CRITICAL" (immediate action needed), "HIGH" (important), or "LOW" (noise/newsletter/general)
+- Check if it matches any Critical Categories - if yes, classify as "CRITICAL"
+- Otherwise classify as "HIGH" (important operations), "STANDARD" (routine), or "LOW" (noise)
 - No thesis_match_score needed (set to null)
 
 STEP 3 - THE RANKER:
-Regardless of the lane, assign an "importance_score" from 1 to 5:
-- 5: Critical/Urgent/High-Value (Needs attention within the hour)
-- 4: Important/Relevant (Should be addressed today)
-- 3: Standard/Routine (Normal business priority)
-- 2: Low Priority/FYI (Can be read later)
-- 1: Noise/Newsletter/Spam (Likely ignore)
+Assign an "importance_score" from 0-10 based on urgency and value:
+- 9-10: Critical items matching Critical Categories or urgent high-value opportunities
+- 7-8: Important opportunities or time-sensitive operational matters
+- 5-6: Standard priority opportunities or important operational updates
+- 3-4: Low priority opportunities or routine operational matters
+- 0-2: Noise, newsletters, or irrelevant content
 
 OUTPUT:
 Output your response as a JSON object with this exact structure:
 {{
     "lane": "opportunity" | "operation",
-    "category": "OPPORTUNITY" | "CRITICAL" | "HIGH" | "LOW",
-    "importance_score": <number 1-5>,
+    "category": "OPPORTUNITY" | "CRITICAL" | "HIGH" | "STANDARD" | "LOW",
+    "importance_score": <number 0-10>,
     "summary": "One sentence summary focusing on the core value or action items",
     "thesis_match_score": <number 0-100> | null,
     "extracted_info": {{
         "money": "Any monetary amounts mentioned",
-        "links": ["List of important links"],
+        "links": ["List of important links including Gmail links"],
         "sender_info": "Key information about the sender",
-        "deal_details": "Details about any deals or opportunities"
+        "deal_details": "Details about any deals or opportunities",
+        "action_items": ["List of required actions or deadlines"]
     }}
 }}
 
@@ -254,4 +289,3 @@ Only return the JSON object, no additional text."""
                 'extracted_info': json.dumps({'error': error_msg}),
                 'api_error': True
             }
-

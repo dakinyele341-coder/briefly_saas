@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { TagInput } from '@/components/ui/tag-input'
-import { Loader2, Save, ArrowLeft, Sparkles, Info, LogOut, UserPlus, Edit, User, Mail, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Save, ArrowLeft, Sparkles, Info, LogOut, UserPlus, Edit, User, Mail, CheckCircle2, AlertCircle, Target, AlertTriangle, MessageSquare, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { UserRole } from '@/types'
 import { MenuBar } from '@/components/menu-bar'
@@ -40,6 +40,12 @@ function SettingsContent() {
   const [userRole, setUserRole] = useState<UserRole>('Investor')
   const [thesis, setThesis] = useState<string>('')
 
+  // New Persona-based fields
+  const [currentFocus, setCurrentFocus] = useState<string[]>([])
+  const [criticalCategories, setCriticalCategories] = useState<string[]>([])
+  const [communicationStyle, setCommunicationStyle] = useState<string>('')
+  const [businessContext, setBusinessContext] = useState<string>('')
+
   // New Gmail State
   const [gmailConnected, setGmailConnected] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(false)
@@ -62,7 +68,7 @@ function SettingsContent() {
         // Load user profile from Supabase
         const { data: profile } = await supabase
           .from('profiles')
-          .select('keywords, role, thesis')
+          .select('keywords, role, thesis, current_focus, critical_categories, communication_style, business_context')
           .eq('id', currentUser.id)
           .single()
 
@@ -82,6 +88,23 @@ function SettingsContent() {
 
           if (profile.thesis) {
             setThesis(profile.thesis)
+          }
+
+          // Load new persona fields
+          if (profile.current_focus) {
+            setCurrentFocus(Array.isArray(profile.current_focus) ? profile.current_focus : [])
+          }
+
+          if (profile.critical_categories) {
+            setCriticalCategories(Array.isArray(profile.critical_categories) ? profile.critical_categories : [])
+          }
+
+          if (profile.communication_style) {
+            setCommunicationStyle(profile.communication_style)
+          }
+
+          if (profile.business_context) {
+            setBusinessContext(profile.business_context)
           }
         }
 
@@ -187,6 +210,10 @@ function SettingsContent() {
           keywords: keywords,
           role: userRole,
           thesis: thesis.trim(),
+          current_focus: currentFocus,
+          critical_categories: criticalCategories,
+          communication_style: communicationStyle,
+          business_context: businessContext,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'id'
@@ -383,6 +410,108 @@ function SettingsContent() {
                       Connect Gmail
                     </Button>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Current Focus Card */}
+              <Card className="shadow-xl border-0">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 rounded-t-lg">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <Target className="h-5 w-5 text-orange-500" />
+                    Current Focus
+                  </CardTitle>
+                  <CardDescription>
+                    What are your top priorities right now?
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <TagInput
+                    tags={currentFocus}
+                    onChange={setCurrentFocus}
+                    placeholder="Add focus areas (e.g., Fundraising, Hiring, Sales)"
+                    className="min-h-[80px]"
+                  />
+                  <p className="text-xs text-gray-500">
+                    These help the AI prioritize emails that align with your current goals.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Critical Categories Card */}
+              <Card className="shadow-xl border-0">
+                <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 rounded-t-lg">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    Critical Categories
+                  </CardTitle>
+                  <CardDescription>
+                    Email types you absolutely cannot miss
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <TagInput
+                    tags={criticalCategories}
+                    onChange={setCriticalCategories}
+                    placeholder="Add critical categories (e.g., Investor intros, Client issues)"
+                    className="min-h-[80px]"
+                  />
+                  <p className="text-xs text-gray-500">
+                    These categories will be ranked as high priority by the AI.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Communication Style Card */}
+              <Card className="shadow-xl border-0">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-indigo-500" />
+                    Communication Style
+                  </CardTitle>
+                  <CardDescription>
+                    How should AI-generated replies sound?
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <select
+                    value={communicationStyle}
+                    onChange={(e) => setCommunicationStyle(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="">Select a style...</option>
+                    <option value="Short & Direct">Short & Direct</option>
+                    <option value="Polite & Professional">Polite & Professional</option>
+                    <option value="Friendly & Casual">Friendly & Casual</option>
+                    <option value="Detailed & Thorough">Detailed & Thorough</option>
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    This determines the tone of AI-generated email replies.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Business Context Card */}
+              <Card className="shadow-xl border-0">
+                <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-t-lg">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-teal-500" />
+                    Business Context
+                  </CardTitle>
+                  <CardDescription>
+                    Tell us about your business goals and challenges
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Textarea
+                    placeholder="Describe your current business goals, challenges, or what you're working towards..."
+                    value={businessContext}
+                    onChange={(e) => setBusinessContext(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-gray-500">
+                    This context helps the AI better understand your situation and provide more relevant insights.
+                  </p>
                 </CardContent>
               </Card>
 

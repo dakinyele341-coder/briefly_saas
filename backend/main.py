@@ -136,17 +136,16 @@ class OAuthCallbackRequest(BaseModel):
     refresh_token: Optional[str] = None
 
 
-def process_email(email: Dict, keywords: List[str], user_role: UserRole, user_id: str, pdf_analysis_allowed: bool = False) -> Optional[Dict]:
+def process_email(email: Dict, user_profile: Dict, user_id: str, pdf_analysis_allowed: bool = False) -> Optional[Dict]:
     """Process a single email using Dual-Pipeline Classifier."""
     try:
         # Build email content
         email_content = f"Subject: {email['subject']}\n\nFrom: {email['sender']}\n\n{email['body']}"
-        
-        # Use Dual-Pipeline Classifier
+
+        # Use Dual-Pipeline Classifier with persona-based profile
         analysis = deal_flow_classifier.classify_email_dual_pipeline(
             email_content=email_content,
-            keywords=keywords,
-            user_role=user_role,
+            user_profile=user_profile,
             pdf_analysis_allowed=pdf_analysis_allowed
         )
         
@@ -387,7 +386,7 @@ def daily_briefing_job():
                 processed_count = 0
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     future_to_email = {
-                        executor.submit(process_email, email, keywords, user_role, user_id): email
+                        executor.submit(process_email, email, profile, user_id): email
                         for email in emails
                     }
 
@@ -713,7 +712,7 @@ def scan_emails(request: ScanRequest):
         
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_email = {
-                executor.submit(process_email, email, request.keywords, request.user_role, request.user_id, pdf_analysis_allowed): email
+                executor.submit(process_email, email, user_profile, request.user_id, pdf_analysis_allowed): email
                 for email in emails
             }
             
@@ -812,29 +811,48 @@ async def save_credentials(request: SaveCredentialsRequest):
 async def draft_reply(request: DraftReplyRequest):
     """
     Generate a draft reply for an email using Gemini AI.
+    Uses the user's persona-based communication style.
     """
     try:
-        # Get user's profile to get their keywords/preferences
+        # Get user's profile to get their persona data
         profile = models.get_user_profile(supabase, request.user_id)
-        keywords = profile.get('keywords', []) if profile else []
-        thesis = ', '.join(keywords) if keywords else ''
-        
+        if not profile:
+            raise HTTPException(status_code=400, detail="User profile not found")
+
+        # Extract persona data
+        role = profile.get('role', 'Professional')
+        communication_style = profile.get('communication_style', 'Professional')
+        business_context = profile.get('business_context', '')
+
+        # Style-specific instructions
+        style_instructions = {
+            'Short & Direct': 'Write a brief, direct response focusing on key points only. Be concise and to-the-point.',
+            'Polite & Professional': 'Write a courteous, professional response with proper etiquette and formal language.',
+            'Friendly & Casual': 'Write a warm, approachable response with a conversational tone.',
+            'Detailed & Thorough': 'Write a comprehensive response covering all relevant details and providing complete information.'
+        }
+
+        instructions = style_instructions.get(communication_style, 'Write a professional response.')
+
         # Create prompt for Gemini to draft a reply
-        prompt = f"""Draft a professional email reply to the following email.
+        prompt = f"""You are drafting an email reply for a {role}.
+
+User's preferred communication style: {communication_style}
+{instructions}
+
+Business Context: {business_context if business_context else 'No additional context provided'}
 
 Original Email:
 From: {request.original_sender}
 Subject: {request.email_subject}
 Body: {request.email_body}
 
-User's Professional Context: {thesis}
-
 Instructions:
-- Write a professional, concise reply
 - Be polite and helpful
 - Reference the original email appropriately
-- Keep it brief unless a detailed response is needed
-- Match the tone of the original email
+- Keep the response consistent with the user's preferred communication style
+- Focus on being clear and actionable
+- Sign off appropriately based on the relationship context
 
 Reply:"""
 
@@ -844,11 +862,13 @@ Reply:"""
             model="gemini-2.0-flash",
             contents=prompt
         )
-        
+
         draft_reply_text = response.text.strip() if hasattr(response, 'text') and response.text else str(response).strip()
-        
+
         return DraftReplyResponse(draft_reply=draft_reply_text)
-    
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating draft reply: {str(e)}")
 
