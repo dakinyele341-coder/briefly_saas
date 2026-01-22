@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { TagInput } from '@/components/ui/tag-input'
-import { Loader2, Save, ArrowLeft, Sparkles, Info, LogOut, UserPlus, Edit, User, Mail, CheckCircle2, AlertCircle, Target, AlertTriangle, MessageSquare, FileText } from 'lucide-react'
+import { Loader2, Save, ArrowLeft, Sparkles, Info, LogOut, UserPlus, Edit, User, Mail, CheckCircle2, AlertCircle, Target, AlertTriangle, MessageSquare, FileText, Settings } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { UserRole } from '@/types'
 import { MenuBar } from '@/components/menu-bar'
@@ -20,20 +21,32 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 // Get Google Client ID from environment
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '1088219665893-6o167j9df3uov60ckk1d054d7pfdt64e.apps.googleusercontent.com'
 
-const ROLE_EXAMPLES: Record<UserRole, string> = {
-  Investor: 'e.g., B2B SaaS, Pre-Seed, Fintech, Africa, Marketplace',
-  'Agency Owner': 'e.g., Client Retainer, Service Lead, Brand Pitch, Outreach, Project Inquiry',
-  'Founder/Business Owner': 'e.g., B2B Lead, Wholesale, Bulk Order, Hiring, Acquisition',
-  'Operator / Executive': 'e.g., Team Management, Strategic Planning, Operations, Budget, Compliance',
-  Other: 'e.g., Personal, Miscellaneous, Custom Categories',
-}
+const ROLE_OPTIONS = [
+  'Founder',
+  'Agency Owner',
+  'Investor',
+  'Operator / Executive',
+  'Other'
+]
 
-const ROLE_INSTRUCTIONS: Record<UserRole, string> = {
-  Investor: 'Enter investment focus areas, industries, stages, and geographies. The AI uses these to hunt for pitch decks and funding opportunities.',
-  'Agency Owner': 'Enter your agency niche, service types, and ideal client profile. The AI uses these to identify high-value service leads and partnership inquiries.',
-  'Founder/Business Owner': 'Enter business opportunities, lead types, and partnership categories. The AI uses these to identify deals, partnerships, and growth opportunities.',
-  'Operator / Executive': 'Enter operational focus areas, team priorities, and strategic objectives. The AI uses these to identify important updates, decisions, and operational matters.',
-  Other: 'Enter your custom categories and focus areas. The AI uses these to personalize email prioritization based on your specific needs.',
+const FOCUS_OPTIONS = [
+  'Fundraising', 'Client delivery', 'Sales & partnerships', 'Hiring', 'Deal sourcing', 'Operations / finance'
+]
+
+const CRITICAL_OPTIONS = [
+  'Investor or partner introductions', 'Client issues or renewals', 'Legal / finance', 'Deadlines & decisions', 'Internal team issues'
+]
+
+const STYLE_OPTIONS = [
+  'Short & direct', 'Polite & professional', 'Warm & conversational', 'Formal'
+]
+
+const ROLE_EXAMPLES: Record<string, string> = {
+  Founder: 'e.g., Venture growth, Product-market fit, Hiring, Scaling',
+  'Agency Owner': 'e.g., Lead gen, Client retention, Upselling, Service delivery',
+  Investor: 'e.g., Deal flow, Due diligence, Portfolio support',
+  'Operator / Executive': 'e.g., Team efficiency, Strategy execution, P&L management',
+  Other: 'e.g., Personal productivity, Custom focus areas',
 }
 
 function SettingsContent() {
@@ -245,214 +258,273 @@ function SettingsContent() {
       <MenuBar />
       <div className="lg:ml-64 min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-8">
         <div className="max-w-3xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => router.push('/dashboard')}
-            className="mb-6 hover:bg-white"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <Settings className="h-8 w-8 text-blue-600" />
+              Settings
+            </h1>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700 shadow-md"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Save Changes
+            </Button>
+          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Additional Settings Cards */}
-            <div className="space-y-6">
-
-              {/* Gmail Connection Card - NEW */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-t-lg">
+          <div className="grid grid-cols-1 gap-8">
+            <div className="space-y-8">
+              {/* User Role Card */}
+              <Card className="shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
                   <CardTitle className="text-xl flex items-center gap-2">
-                    <Mail className="h-5 w-5 text-green-600" />
-                    Gmail Connection
+                    <User className="h-5 w-5 text-blue-600" />
+                    What best describes you?
                   </CardTitle>
                   <CardDescription>
-                    Manage your detailed connection to Gmail
+                    This role affects how importance, urgency, and relevance are interpreted.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 pt-4">
-                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      {gmailConnected ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-yellow-500" />
-                      )}
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {gmailConnected ? 'Connected' : 'Not Connected'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {gmailConnected ? 'Briefly is scanning your emails' : 'Connect to start scanning'}
-                        </p>
-                      </div>
-                    </div>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {ROLE_OPTIONS.map((role) => (
+                      <Button
+                        key={role}
+                        variant={userRole === role ? 'default' : 'outline'}
+                        onClick={() => setUserRole(role as UserRole)}
+                        className={cn(
+                          "h-12 justify-center font-medium transition-all",
+                          userRole === role ? "bg-blue-600 border-blue-600" : "hover:border-blue-200 hover:bg-blue-50"
+                        )}
+                      >
+                        {role}
+                      </Button>
+                    ))}
                   </div>
-
-                  {gmailConnected ? (
-                    <Button
-                      onClick={handleDisconnectGmail}
-                      variant="destructive"
-                      className="w-full"
-                    >
-                      Disconnect Gmail
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => login()}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      Connect Gmail
-                    </Button>
-                  )}
+                  <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3">
+                    <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-blue-800">
+                      {ROLE_EXAMPLES[userRole] || 'Select a role to see examples.'}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 
               {/* Current Focus Card */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 rounded-t-lg">
+              <Card className="shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-yellow-50 border-b">
                   <CardTitle className="text-xl flex items-center gap-2">
-                    <Target className="h-5 w-5 text-orange-500" />
-                    Current Focus
+                    <Target className="h-5 w-5 text-orange-600" />
+                    What matters most to you right now?
                   </CardTitle>
                   <CardDescription>
-                    What are your top priorities right now?
+                    Treat selected focuses as priority amplifiers.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <TagInput
-                    tags={currentFocus}
-                    onChange={setCurrentFocus}
-                    placeholder="Add focus areas (e.g., Fundraising, Hiring, Sales)"
-                    className="min-h-[80px]"
-                  />
-                  <p className="text-xs text-gray-500">
-                    These help the AI prioritize emails that align with your current goals.
-                  </p>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {FOCUS_OPTIONS.map((focus) => (
+                      <Button
+                        key={focus}
+                        variant={currentFocus.includes(focus) ? 'default' : 'outline'}
+                        onClick={() => {
+                          const newFocus = currentFocus.includes(focus)
+                            ? currentFocus.filter(f => f !== focus)
+                            : [...currentFocus, focus]
+                          setCurrentFocus(newFocus)
+                        }}
+                        className={cn(
+                          "h-12 justify-center font-medium transition-all",
+                          currentFocus.includes(focus) ? "bg-orange-600 border-orange-600" : "hover:border-orange-200 hover:bg-orange-50"
+                        )}
+                      >
+                        {focus}
+                      </Button>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Critical Categories Card */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 rounded-t-lg">
+              {/* Non-Missable Email Types Card */}
+              <Card className="shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 border-b">
                   <CardTitle className="text-xl flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                    Critical Categories
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    What emails can’t you afford to miss?
                   </CardTitle>
                   <CardDescription>
-                    Email types you absolutely cannot miss
+                    These will be elevated immediately, regardless of sender size or tone.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <TagInput
-                    tags={criticalCategories}
-                    onChange={setCriticalCategories}
-                    placeholder="Add critical categories (e.g., Investor intros, Client issues)"
-                    className="min-h-[80px]"
-                  />
-                  <p className="text-xs text-gray-500">
-                    These categories will be ranked as high priority by the AI.
-                  </p>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {CRITICAL_OPTIONS.map((option) => (
+                      <Button
+                        key={option}
+                        variant={criticalCategories.includes(option) ? 'default' : 'outline'}
+                        onClick={() => {
+                          const newCategories = criticalCategories.includes(option)
+                            ? criticalCategories.filter(c => c !== option)
+                            : [...criticalCategories, option]
+                          setCriticalCategories(newCategories)
+                        }}
+                        className={cn(
+                          "h-12 justify-center font-medium transition-all text-center whitespace-normal",
+                          criticalCategories.includes(option) ? "bg-red-600 border-red-600" : "hover:border-red-200 hover:bg-red-50"
+                        )}
+                      >
+                        {option}
+                      </Button>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
 
               {/* Communication Style Card */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-lg">
+              <Card className="shadow-xl border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
                   <CardTitle className="text-xl flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-indigo-500" />
-                    Communication Style
+                    <MessageSquare className="h-5 w-5 text-indigo-600" />
+                    How do you prefer to reply?
                   </CardTitle>
                   <CardDescription>
-                    How should AI-generated replies sound?
+                    All drafted replies will strictly follow this selected style.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <select
-                    value={communicationStyle}
-                    onChange={(e) => setCommunicationStyle(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="">Select a style...</option>
-                    <option value="Short & Direct">Short & Direct</option>
-                    <option value="Polite & Professional">Polite & Professional</option>
-                    <option value="Friendly & Casual">Friendly & Casual</option>
-                    <option value="Detailed & Thorough">Detailed & Thorough</option>
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    This determines the tone of AI-generated email replies.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Business Context Card */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-t-lg">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-teal-500" />
-                    Business Context
-                  </CardTitle>
-                  <CardDescription>
-                    Tell us about your business goals and challenges
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Describe your current business goals, challenges, or what you're working towards..."
-                    value={businessContext}
-                    onChange={(e) => setBusinessContext(e.target.value)}
-                    rows={4}
-                    className="resize-none"
-                  />
-                  <p className="text-xs text-gray-500">
-                    This context helps the AI better understand your situation and provide more relevant insights.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Account Actions Card */}
-              <Card className="shadow-xl border-0">
-                <CardHeader className="bg-gradient-to-r from-red-50 to-orange-50 rounded-t-lg">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <User className="h-5 w-5 text-red-500" />
-                    Account Actions
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your account and authentication
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <Button
-                      onClick={handleSwitchAccount}
-                      variant="outline"
-                      className="w-full justify-start gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      Sign in to Another Account
-                    </Button>
-
-                    <Button
-                      onClick={handleSignOut}
-                      variant="outline"
-                      className="w-full justify-start gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sign Out
-                    </Button>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {STYLE_OPTIONS.map((style) => (
+                      <Button
+                        key={style}
+                        variant={communicationStyle === style ? 'default' : 'outline'}
+                        onClick={() => setCommunicationStyle(style)}
+                        className={cn(
+                          "h-12 justify-center font-medium transition-all",
+                          communicationStyle === style ? "bg-indigo-600 border-indigo-600" : "hover:border-indigo-200 hover:bg-indigo-50"
+                        )}
+                      >
+                        {style}
+                      </Button>
+                    ))}
                   </div>
-
-                  {user && (
-                    <div className="pt-4 border-t border-gray-200">
-                      <p className="text-sm text-gray-600">
-                        Currently signed in as:
-                      </p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {user.email}
-                      </p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Business Context Card */}
+                <Card className="shadow-xl border-0 h-full">
+                  <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-teal-600" />
+                      Business Context
+                    </CardTitle>
+                    <CardDescription>
+                      Share details about your business goals and current challenges.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <Textarea
+                      placeholder="Describe your current business goals, challenges, or what you're working towards..."
+                      value={businessContext}
+                      onChange={(e) => setBusinessContext(e.target.value)}
+                      rows={6}
+                      className="resize-none focus-visible:ring-teal-500"
+                    />
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-8">
+                  {/* Gmail Connection Card */}
+                  <Card className="shadow-xl border-0 overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <Mail className="h-5 w-5 text-green-600" />
+                        Gmail Connection
+                      </CardTitle>
+                      <CardDescription>
+                        Manage your connection to start scanning emails.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 shadow-sm mb-4">
+                        <div className="flex items-center gap-3">
+                          {gmailConnected ? (
+                            <CheckCircle2 className="h-6 w-6 text-green-500" />
+                          ) : (
+                            <AlertCircle className="h-6 w-6 text-yellow-500" />
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {gmailConnected ? 'Connected' : 'Not Connected'}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {gmailConnected ? 'Successfully linked to your inbox' : 'Connect to enable email analysis'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {gmailConnected ? (
+                        <Button
+                          onClick={handleDisconnectGmail}
+                          variant="outline"
+                          className="w-full border-red-200 text-red-600 hover:bg-red-50 font-medium"
+                        >
+                          Disconnect Gmail
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => login()}
+                          className="w-full bg-blue-600 hover:bg-blue-700 shadow-md font-medium"
+                        >
+                          Connect Gmail Account
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Account Actions Card */}
+                  <Card className="shadow-xl border-0 overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b">
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <User className="h-5 w-5 text-orange-600" />
+                        Account
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="flex flex-col gap-3">
+                        <Button
+                          onClick={handleSwitchAccount}
+                          variant="outline"
+                          className="w-full justify-start gap-2"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          Switch Account
+                        </Button>
+
+                        <Button
+                          onClick={handleSignOut}
+                          variant="outline"
+                          className="w-full justify-start gap-2 border-red-100 text-red-600 hover:bg-red-50"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Sign Out
+                        </Button>
+                      </div>
+
+                      {user && (
+                        <div className="pt-4 border-t border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Signed in as</p>
+                          <p className="text-sm font-medium text-gray-900 border-l-4 border-blue-500 pl-3 py-1 bg-blue-50/50 rounded-r-lg">
+                            {user.email}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </div>
           </div>
         </div>

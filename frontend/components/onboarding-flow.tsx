@@ -21,10 +21,10 @@ interface OnboardingFlowProps {
 
 const ROLE_OPTIONS = [
   { value: 'Founder', label: 'Founder', description: 'Building and growing a business' },
-  { value: 'Agency owner', label: 'Agency owner', description: 'Running a service business' },
-  { value: 'Investor', label: 'Investor', description: 'Investing in companies' },
-  { value: 'Operator / Executive', label: 'Operator / Executive', description: 'Managing operations' },
-  { value: 'Other', label: 'Other', description: 'Other role' }
+  { value: 'Agency Owner', label: 'Agency Owner', description: 'Running a specialized service business' },
+  { value: 'Investor', label: 'Investor', description: 'Investing in companies or assets' },
+  { value: 'Operator / Executive', label: 'Operator / Executive', description: 'Leading operations or teams' },
+  { value: 'Other', label: 'Other', description: 'Not listed above' }
 ]
 
 const FOCUS_OPTIONS = [
@@ -247,15 +247,13 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
             const Icon = step.icon
             return (
               <div key={step.id} className="flex items-center">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                  index <= currentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full ${index <= currentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'
+                  }`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`w-8 h-0.5 mx-1 ${
-                    index < currentStep ? 'bg-blue-500' : 'bg-gray-200'
-                  }`} />
+                  <div className={`w-8 h-0.5 mx-1 ${index < currentStep ? 'bg-blue-500' : 'bg-gray-200'
+                    }`} />
                 )}
               </div>
             )

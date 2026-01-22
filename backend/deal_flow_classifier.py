@@ -72,72 +72,51 @@ def analyze_email_briefly_ai(
     # Normalize role for display
     role_display = role if isinstance(role, str) else role.value
 
-    prompt = f"""You are Briefly AI, an intelligent email prioritization assistant for {role_display}.
+    prompt = f"""You are Briefly AI, an intelligent email prioritization assistant for a {role_display}.
+Your mission is to perform deep intent analysis to identify priority communications WITHOUT relying on specific keyword matches.
 
-USER CONTEXT:
-- Role: {role_display}
-- Current Focus Areas: {', '.join(current_focus) if current_focus else 'General business priorities'}
-- Non-Missable Categories: {', '.join(critical_categories) if critical_categories else 'Critical business communications'}
-- Communication Style: {communication_style}
-- Business Context: {business_context if business_context else 'No additional context'}
+USER PERSONA & CONTEXT:
+- **Role:** {role_display}
+- **Top Priorities (Current Focus):** {', '.join(current_focus) if current_focus else 'General productivity and business growth'}
+- **Non-Missable Categories:** {', '.join(critical_categories) if critical_categories else 'Any high-stakes or time-sensitive communications'}
+- **Communication Style:** {communication_style}
+- **Business Context:** {business_context if business_context else 'Professional business environment'}
 
-DOCUMENT ANALYSIS: {'ENABLED - Analyze PDFs, pitch decks, and attachments for decision-relevant insights' if pdf_analysis_allowed else 'DISABLED - Only analyze text content'}
+ANALYSIS PRINCIPLES (STRICT):
+1. **NO KEYWORD MATCHING:** Do not look for specific words. Focus on the **intent**, **logic**, and **business implications** of the message.
+2. **INTENT INFERENCE:** Identify what the sender really wants (e.g., a decision, a referral, an update, a payment, a favor).
+3. **CONTEXTUAL RELEVANCE:** How does this email affect the user's specific role ({role_display}) and their current focus areas?
+4. **URGENCY & IMPACT:** Identify hidden urgency (soft deadlines) and potential business upside or downside.
+
+IMPORTANCE RANKING (DYNAMIC):
+Rank the email into one of these EXACT categories based on business impact and decision dependency:
+- 🔴 Critical — act now: Immediate action required, matches non-missable categories, hard deadlines, or high business risk/opportunity.
+- 🟠 Important — review today: Time-sensitive but not immediate, important stakeholders, or significant progress blocks.
+- 🟡 Useful — review later: Relevant updates, moderate opportunities, or useful networking.
+- ⚪ Low priority — optional: Newsletters, generic updates, or low-relevance outreaches.
+
+DOCUMENT & ATTACHMENT ANALYSIS:
+{'[ENABLED] - Thoroughly analyze pitch decks, contracts, and attachments for decision-relevant insights only. Ignore marketing fluff.' if pdf_analysis_allowed else '[DISABLED] - Do not analyze attachments.'}
 
 EMAIL CONTENT:
 {email_content}
 
-ANALYSIS INSTRUCTIONS:
-
-1️⃣ CONTEXTUAL UNDERSTANDING (No Keywords - Focus on Intent):
-- Infer sender's goals: asking, informing, pitching, warning, deciding?
-- Identify hidden urgency, opportunity, or risk
-- Understand the business context and implications
-- Look beyond surface words to real intent
-
-2️⃣ IMPORTANCE SCORING (Dynamic Ranking):
-Evaluate using ALL factors:
-- User role alignment
-- Current focus relevance
-- Non-missable category matches
-- Time sensitivity & deadlines
-- Business impact (upside/downside potential)
-- Decision dependency (blocks progress?)
-
-RANKING LEVELS:
-- 🔴 Critical — act now: Immediate action required, matches non-missable categories, urgent deadlines, high business impact
-- 🟠 Important — review today: Time-sensitive opportunities, important decisions, stakeholder communications
-- 🟡 Useful — review later: Relevant information, moderate opportunities, useful updates
-- ⚪ Low priority — optional: Routine communications, low relevance, promotional content
-
-3️⃣ SMART SUMMARIZATION (1-3 Sentence Executive Summary):
-Highlight:
-- What is being asked (if anything)
-- What action is required
-- Any deadlines, risks, or leverage points
-- For attachments: Only decision-relevant insights (ignore fluff, branding, generic content)
-
-4️⃣ REPLY DRAFTING (Only if appropriate):
-- Use {communication_style} communication style
-- Be concise, decisive, aligned with {role_display} role
-- Never sound generic, robotic, or apologetic
-- If unclear, draft a clarifying but confident reply
-
-OUTPUT FORMAT (JSON):
+OUTPUT REQUIREMENTS (JSON ONLY):
+Return a JSON object with this exact structure:
 {{
     "importance_level": "🔴 Critical — act now" | "🟠 Important — review today" | "🟡 Useful — review later" | "⚪ Low priority — optional",
-    "executive_summary": "1-3 sentence summary highlighting key points, actions, deadlines, and business implications",
-    "action_required": "Specific actions needed or 'No immediate action required'",
-    "deadlines": "Any deadlines mentioned or 'No deadlines'",
-    "risks_leverage": "Key risks, opportunities, or leverage points",
-    "sender_goals": "Inferred sender objectives (asking/informing/pitching/warning/deciding)",
-    "urgency_signals": "What creates urgency or importance",
-    "reply_draft": "Drafted response in {communication_style} style, or empty string if no reply needed",
+    "executive_summary": "1-3 sentence summary focusing on the core business intent and required action.",
+    "action_required": "Specific next step or 'No immediate action required'",
+    "deadlines": "Any hard or soft deadlines detected",
+    "risks_leverage": "Potential risks or leverage points identified",
+    "sender_goals": "Inferred sender intent (e.g., seeking investment, asking for refund, proposing partnership)",
+    "urgency_signals": "Why is this important/urgent right now?",
+    "reply_draft": "Concise draft in {communication_style} style (if a reply is warranted)",
     "extracted_info": {{
-        "money_amounts": "Any monetary figures mentioned",
-        "important_links": ["List of key links"],
-        "key_contacts": "Important people mentioned",
-        "business_terms": "Key business concepts or terms",
-        "attachments_insights": "Decision-relevant insights from documents (only if analysis enabled)"
+        "money_amounts": "Monetary figures",
+        "important_links": ["List of key URLs"],
+        "key_contacts": "People/entities mentioned",
+        "attachments_insights": "Key takeaways from attachments (if enabled)"
     }}
 }}
 

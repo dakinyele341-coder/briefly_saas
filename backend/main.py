@@ -77,7 +77,7 @@ class UserRole(str, Enum):
 
 class ScanRequest(BaseModel):
     user_id: str
-    keywords: List[str]  # List of keywords/tags
+    keywords: Optional[List[str]] = []  # Now optional
     user_role: UserRole  # Investor, Agency Owner, or Founder
     limit: Optional[int] = 20
     time_range: Optional[str] = "auto"  # "auto", "2hours", "1day", "3days", "7days", "30days"
@@ -506,10 +506,6 @@ def scan_emails(request: ScanRequest):
     try:
         # Cleanup old data first (24h retention policy)
         cleanup_old_summaries(request.user_id)
-
-        # Validate input
-        if not request.keywords or len(request.keywords) == 0:
-            raise HTTPException(status_code=400, detail="Keywords are required. Please set up your thesis in settings.")
 
         if not request.user_id:
             raise HTTPException(status_code=400, detail="User ID is required.")
