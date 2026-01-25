@@ -17,7 +17,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { getBriefs, getStats, draftReply, saveCredentials, markBriefAsRead, scanEmails, checkBackendHealth, checkCredentials, isAdminEmail, getUnscannedEmails, getUnscannedEmailsCount, sendFeedback, getDashboardStats, getSubscriptionInfo } from '@/utils/api'
+import {
+  getBriefs,
+  getStats,
+  draftReply,
+  saveCredentials,
+  markBriefAsRead,
+  scanEmails,
+  checkBackendHealth,
+  checkCredentials,
+  isAdminEmail,
+  getUnscannedEmails,
+  getUnscannedEmailsCount,
+  sendFeedback,
+  getDashboardStats,
+  getSubscriptionInfo
+} from '@/utils/api'
 import { StatsDashboard } from '@/components/stats-dashboard'
 import { AchievementBadge, calculateAchievements } from '@/components/achievement-badge'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -28,8 +43,13 @@ import { OnboardingFlow } from '@/components/onboarding-flow'
 
 // Import shared types
 import { Summary, UserRole } from '@/types'
-import { Loader2, Mail, AlertCircle, CheckCircle, Reply, RefreshCw, MailCheck, Settings, Sparkles, Briefcase, Trophy, Zap, Shield, CreditCard, MessageSquare, ExternalLink, Flame, TrendingUp, Minus, Circle, Star, Info } from 'lucide-react'
+import {
+  Loader2, Mail, AlertCircle, CheckCircle, Reply, RefreshCw, MailCheck,
+  Settings, Sparkles, Briefcase, Trophy, Zap, Shield, CreditCard,
+  MessageSquare, ExternalLink, Flame, TrendingUp, Minus, Circle, Star, Info
+} from 'lucide-react'
 import toast from 'react-hot-toast'
+import { User } from '@supabase/supabase-js'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
@@ -43,7 +63,7 @@ const LANE_A_TITLES: Record<UserRole, string> = {
   'Other': 'Opportunities',
 }
 
-import { User } from '@supabase/supabase-js'
+
 
 const getImportanceBadge = (importanceLevel?: string, score?: number) => {
   // First try to use the new Briefly AI importance level
@@ -202,14 +222,15 @@ function DashboardContent() {
   }, [viewFilter])
 
   // Helper functions
-  const loadBriefs = useCallback(async () => {
-    if (!user) return
+  const loadBriefs = useCallback(async (forcedUserId?: string) => {
+    const targetUserId = forcedUserId || user?.id
+    if (!targetUserId) return
 
     try {
       // Fetch opportunities and operations in parallel
       const [oppsData, opsData] = await Promise.all([
-        getBriefs(user.id, pageSize, (page - 1) * pageSize, undefined, 'opportunity'),
-        getBriefs(user.id, pageSize, (page - 1) * pageSize, undefined, 'operation')
+        getBriefs(targetUserId, pageSize, (page - 1) * pageSize, undefined, 'opportunity'),
+        getBriefs(targetUserId, pageSize, (page - 1) * pageSize, undefined, 'operation')
       ])
 
       setOpportunities(oppsData.summaries)
@@ -228,11 +249,12 @@ function DashboardContent() {
     }
   }, [user, page, pageSize])
 
-  const loadStats = useCallback(async () => {
-    if (!user) return
+  const loadStats = useCallback(async (forcedUserId?: string) => {
+    const targetUserId = forcedUserId || user?.id
+    if (!targetUserId) return
 
     try {
-      const statsData = await getStats(user.id)
+      const statsData = await getStats(targetUserId)
       setStats(statsData)
     } catch (error: any) {
       console.error('Error loading stats:', error)
@@ -553,16 +575,6 @@ function DashboardContent() {
   useEffect(() => {
     async function loadUserAndBriefs() {
       try {
-        // Check if backend is online
-        const isOnline = await checkBackendHealth()
-        setBackendOnline(isOnline)
-
-        if (!isOnline) {
-          toast.error('Briefly is offline. Please check if the backend server is running.')
-          setLoading(false)
-          return
-        }
-
         const supabase = createClient()
         const { data: { user: currentUser } } = await supabase.auth.getUser()
 
@@ -579,13 +591,31 @@ function DashboardContent() {
           setCanScanPastEmails(true) // Admin can always scan past emails
         }
 
-        // Load user profile to check onboarding completion
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, current_focus, critical_categories, communication_style, onboarding_completed')
-          .eq('id', currentUser.id)
-          .single()
+        // Parallelize initial check: profile, credentials, subscription
+        const [profileRes, credentialsRes, subInfo] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single(),
+          (async () => {
+            try {
+              return await checkCredentials(currentUser.id)
+            } catch {
+              return { connected: false }
+            }
+          })(),
+          (async () => {
+            try {
+              return await getSubscriptionInfo(currentUser.id)
+            } catch (err) {
+              console.error('Error loading subscription info:', err)
+              return null
+            }
+          })()
+        ])
 
+        const profile = profileRes.data
         if (profile?.role) {
           setUserRole(profile.role as UserRole)
         }
@@ -594,55 +624,44 @@ function DashboardContent() {
         if (!profile?.onboarding_completed) {
           setShowOnboarding(true)
           setLoading(false)
+          setBackendOnline(true) // Assume online if we got here
           return
         }
 
-        // Check if user can scan past emails (new users or admin)
+        setGmailConnected(credentialsRes.connected)
+        setCheckingConnection(false)
+        if (subInfo) setSubscriptionInfo(subInfo)
+        setBackendOnline(true)
+
+        // Parallelize data fetching and one-time checks
+        const dataPromises: Promise<any>[] = [
+          loadBriefs(currentUser.id),
+          loadStats(currentUser.id)
+        ]
+
+        // Check if user can scan past emails (new users or admin) if not already determined
         if (!isAdmin) {
-          try {
-            // Check if user has any existing summaries
-            const { data: summaries } = await supabase
-              .from('summaries')
-              .select('id')
-              .eq('user_id', currentUser.id)
-              .limit(1)
-
-            // If no summaries exist, user can scan past emails (one time)
-            setCanScanPastEmails(!summaries || summaries.length === 0)
-          } catch (error) {
-            console.error('Error checking user summaries:', error)
-            setCanScanPastEmails(false) // Default to false on error
-          }
+          dataPromises.push((async () => {
+            try {
+              const { data: summaries } = await supabase
+                .from('summaries')
+                .select('id')
+                .eq('user_id', currentUser.id)
+                .limit(1)
+              setCanScanPastEmails(!summaries || summaries.length === 0)
+            } catch (error: any) {
+              console.error('Error checking user summaries:', error)
+              setCanScanPastEmails(false)
+            }
+          })())
         }
 
-        // Check if Gmail is connected
-        try {
-          const { connected } = await checkCredentials(currentUser.id)
-          setGmailConnected(connected)
-        } catch {
-          setGmailConnected(false)
-        } finally {
-          setCheckingConnection(false)
-        }
-
-        // Load subscription info
-        try {
-          const subInfo = await getSubscriptionInfo(currentUser.id)
-          setSubscriptionInfo(subInfo)
-        } catch (error) {
-          console.error('Error loading subscription info:', error)
-        }
-
-        // Load all data in parallel
-        await Promise.all([
-          loadBriefs(),
-          loadStats()
-        ])
-
+        await Promise.all(dataPromises)
         setLastRefreshTime(new Date())
       } catch (error: any) {
         console.error('Error loading dashboard:', error)
-        if (error.message.includes('offline')) {
+        if (error.message?.includes('offline') || error.message?.includes('Failed to fetch')) {
+          setBackendOnline(false)
           toast.error('Briefly is offline. Please check if the backend server is running.')
         } else {
           toast.error(error.message || 'Failed to load dashboard')

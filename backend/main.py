@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from fastapi import FastAPI, HTTPException, Request as FastAPIRequest
+from fastapi import FastAPI, HTTPException, Request as FastAPIRequest, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -886,6 +886,7 @@ class BriefsResponse(BaseModel):
 @app.get("/api/brief", response_model=BriefsResponse)
 async def get_brief(
     user_id: str, 
+    background_tasks: BackgroundTasks,
     limit: int = 10, 
     offset: int = 0, 
     category: Optional[str] = None,
@@ -902,8 +903,8 @@ async def get_brief(
     lane: Optional[str] = None
     """
     try:
-        # Cleanup old data first (24h retention policy)
-        cleanup_old_summaries(user_id)
+        # Cleanup old data first (24h retention policy) - now in background
+        background_tasks.add_task(cleanup_old_summaries, user_id)
 
         # Validate limit
         limit = min(max(1, limit), 500)  # Between 1 and 500
@@ -1032,9 +1033,9 @@ async def get_stats(user_id: str):
     Returns: total processed, opportunities, operations, unread opportunities, avg match score
     """
     try:
-        # Get all summaries for user
+        # Get only necessary fields for stats calculation
         result = supabase.table('summaries')\
-            .select('*')\
+            .select('lane, is_read, thesis_match_score')\
             .eq('user_id', user_id)\
             .execute()
 
@@ -1158,6 +1159,7 @@ async def get_email_history(
 @app.get("/api/recent-processed", response_model=BriefsResponse)
 async def get_recent_processed_emails(
     user_id: str,
+    background_tasks: BackgroundTasks,
     limit: int = 100,
     offset: int = 0
 ):
@@ -1171,16 +1173,16 @@ async def get_recent_processed_emails(
         offset: Number of emails to skip (default: 0)
     """
     try:
-        # Cleanup old data first (24h retention policy)
-        cleanup_old_summaries(user_id)
+        # Cleanup old data first (24h retention policy) - now in background
+        background_tasks.add_task(cleanup_old_summaries, user_id)
 
         # Validate limit
         limit = min(max(1, limit), 500)  # Between 1 and 500
         offset = max(0, offset)
 
-        # Build query - get all summaries within 24h window
+        # Get summaries within 24h window
         query = supabase.table('summaries')\
-            .select('*', count='exact')\
+            .select('id, summary, category, subject, sender, date, lane, thesis_match_score, gmail_link, is_read, created_at', count='exact')\
             .eq('user_id', user_id)
 
         # Order by creation date (newest first) to show processing batches
@@ -1391,91 +1393,78 @@ This message was sent from the Briefly feedback system.
 
 
 @app.post("/api/feedback")
-async def submit_feedback(user_id: str, message: str, feedback_type: str = "feedback"):
+async def handle_feedback(request: FeedbackRequest):
     """
-    Submit user feedback or complaint.
-    Messages are sent to admin email.
+    Consolidated feedback/complaint endpoint.
+    Sends email to admin and logs the feedback.
     """
     try:
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
 
-        # Get user profile for email
-        user_profile = models.get_user_profile(supabase, user_id)
-        user_email = user_profile.get('email', 'Unknown') if user_profile else 'Unknown'
-
-        # Email configuration (you'll need to set these up)
-        SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-        SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-        SMTP_USERNAME = os.getenv("SMTP_USERNAME", "your-email@gmail.com")
-        SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "your-app-password")
-        ADMIN_EMAIL = "creatorfuelteam@gmail.com"
+        # Get admin email from environment or use hardcoded
+        admin_email = os.getenv("ADMIN_EMAIL", "creatorfuelteam@gmail.com")
 
         # Create message
         msg = MIMEMultipart()
-        msg['From'] = SMTP_USERNAME
-        msg['To'] = ADMIN_EMAIL
-        msg['Subject'] = f"Briefly {feedback_type.title()}: From {user_email}"
+        msg['From'] = "noreply@briefly.ai"
+        msg['To'] = admin_email
+        msg['Subject'] = f"Briefly {request.type.title() if hasattr(request, 'type') else 'Feedback'}: {request.subject}"
 
         body = f"""
-New {feedback_type} from Briefly user:
+New {request.type if hasattr(request, 'type') else 'feedback'} from Briefly user:
 
-User ID: {user_id}
-User Email: {user_email}
-Type: {feedback_type}
+User ID: {request.user_id}
+User Email: {request.user_email}
+
+Subject: {request.subject}
 
 Message:
-{message}
+{request.message}
 
 ---
 Sent from Briefly SaaS
 """
         msg.attach(MIMEText(body, 'plain'))
 
-        # Send email (only if SMTP is configured)
-        if SMTP_USERNAME != "your-email@gmail.com":
+        # Log feedback
+        logger.info(f"[Feedback] {request.subject} from {request.user_email}")
+
+        # Try sending email if SMTP is configured
+        smtp_password = os.getenv("GMAIL_APP_PASSWORD")
+        if smtp_password:
             try:
-                server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+                smtp_user = os.getenv("GMAIL_USER_EMAIL", admin_email)
+                server = smtplib.SMTP('smtp.gmail.com', 587)
                 server.starttls()
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.login(smtp_user, smtp_password)
                 server.send_message(msg)
                 server.quit()
-                print(f"[Feedback] {feedback_type.title()} sent to admin")
+                logger.info("[Feedback] Email sent successfully")
             except Exception as e:
-                print(f"[Feedback] Failed to send email: {e}")
+                logger.error(f"[Feedback] Failed to send email: {e}")
 
-        # Always save to database as backup
-        feedback_record = {
-            'user_id': user_id,
-            'user_email': user_email,
-            'message': message,
-            'type': feedback_type,
-            'created_at': 'now()'
+        return {
+            "message": "Thank you for your feedback! We've received your message and will respond soon.",
+            "feedback_id": f"fb_{request.user_id}_{int(datetime.now().timestamp())}"
         }
 
-        # You might want to create a feedback table for this
-        # For now, we'll just log it
-        print(f"[Feedback] {feedback_type.title()} received: {message[:100]}...")
-
-        return {"message": "Thank you for your feedback! We've received your message."}
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error submitting feedback: {str(e)}")
-
-
+        logger.error(f"Error handling feedback: {e}")
+        raise HTTPException(status_code=500, detail=f"Error handling feedback: {str(e)}")
 @app.get("/api/dashboard-stats")
-async def get_dashboard_stats(user_id: str):
+async def get_dashboard_stats(user_id: str, background_tasks: BackgroundTasks):
     """
     Get enhanced dashboard stats including unread counts.
     """
     try:
-        # Cleanup old data first
-        cleanup_old_summaries(user_id)
+        # Cleanup old data first - now in background
+        background_tasks.add_task(cleanup_old_summaries, user_id)
 
-        # Get all summaries for user
+        # Get only necessary fields for dashboard stats
         result = supabase.table('summaries')\
-            .select('*')\
+            .select('id, lane, is_read, thesis_match_score, subject, date')\
             .eq('user_id', user_id)\
             .execute()
 
@@ -1539,63 +1528,6 @@ async def get_dashboard_stats(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching dashboard stats: {str(e)}")
 
-
-@app.post("/api/feedback")
-async def submit_feedback(request: FeedbackRequest):
-    """
-    Submit feedback/complaint from user - sends email to admin.
-    """
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-
-        # Get admin email from environment or use hardcoded
-        admin_email = os.getenv("ADMIN_EMAIL", "creatorfuelteam@gmail.com")
-
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = "noreply@briefly.ai"
-        msg['To'] = admin_email
-        msg['Subject'] = f"Briefly {request.feedback_type.title()}: {request.subject}"
-
-        body = f"""
-New {request.feedback_type} from Briefly user:
-
-User ID: {request.user_id}
-User Email: {request.user_email}
-
-Subject: {request.subject}
-
-Message:
-{request.message}
-
----
-Sent from Briefly SaaS
-"""
-
-        msg.attach(MIMEText(body, 'plain'))
-
-        # For now, we'll just log the feedback since we don't have SMTP configured
-        # In production, you'd configure SMTP settings
-        print(f"[Feedback] {request.feedback_type.upper()} from {request.user_email}: {request.subject}")
-        print(f"[Feedback] Message: {request.message}")
-
-        # TODO: Configure SMTP in production
-        # server = smtplib.SMTP('smtp.gmail.com', 587)
-        # server.starttls()
-        # server.login("your-email@gmail.com", "your-password")
-        # server.send_message(msg)
-        # server.quit()
-
-        return {
-            "message": "Thank you for your feedback! We've received your message and will respond soon.",
-            "feedback_id": f"fb_{request.user_id}_{int(datetime.now().timestamp())}"
-        }
-
-    except Exception as e:
-        print(f"Error sending feedback: {e}")
-        raise HTTPException(status_code=500, detail=f"Error submitting feedback: {str(e)}")
 
 
 @app.get("/api/unscanned-count")
