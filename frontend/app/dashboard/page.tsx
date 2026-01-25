@@ -616,6 +616,9 @@ function DashboardContent() {
         ])
 
         const profile = profileRes.data
+        console.log('Dashboard loaded profile:', profile)
+        console.log('Onboarding completed:', profile?.onboarding_completed)
+
         if (profile?.role) {
           setUserRole(profile.role as UserRole)
         }

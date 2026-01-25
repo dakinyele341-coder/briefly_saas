@@ -82,7 +82,7 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
         return
       }
 
-      await supabase
+      const { data: upsertData, error: upsertError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
@@ -95,6 +95,8 @@ export function OnboardingFlow({ onComplete, initialData = {} }: OnboardingFlowP
         }, {
           onConflict: 'id'
         })
+
+      if (upsertError) throw upsertError
 
       toast.success('Onboarding completed!')
       onComplete(data)
