@@ -40,6 +40,9 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
     setSending(true)
     try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
       const response = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
