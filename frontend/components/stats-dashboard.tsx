@@ -11,6 +11,7 @@ interface StatsProps {
   unread_opportunities: number
   unread_operations: number
   avg_match_score: number
+  processed_24h: number
 }
 
 interface StatsDashboardProps {
@@ -52,13 +53,20 @@ export function StatsDashboard({
       <Card className="hover:shadow-lg transition-shadow duration-200">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
-            Emails Processed
+            Processed (24h)
           </CardTitle>
           <Mail className="h-4 w-4 text-blue-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.total_processed}</div>
-          <p className="text-xs text-gray-500 mt-1">Total analyzed</p>
+          <div className="text-2xl font-bold">{stats.processed_24h}</div>
+          <p className="text-xs text-gray-500 mt-1">
+            <span className="text-green-600 font-semibold">
+              {stats.processed_24h} new
+            </span>
+            <span className="text-gray-400 ml-1">
+              (Total: {stats.total_processed})
+            </span>
+          </p>
         </CardContent>
       </Card>
 

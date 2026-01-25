@@ -12,7 +12,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Optional
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1470,8 +1470,18 @@ async def get_dashboard_stats(user_id: str, background_tasks: BackgroundTasks):
 
         summaries = result.data or []
 
+        summaries = result.data or []
+
         # Calculate stats
         total_processed = len(summaries)
+        
+        # Calculate 24h count
+        one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+        processed_24h = len([
+            s for s in summaries 
+            if s.get('created_at') and datetime.fromisoformat(s.get('created_at').replace('Z', '+00:00')) > one_day_ago
+        ])
+
         opportunities = len([s for s in summaries if s.get('lane') == 'opportunity'])
         operations = len([s for s in summaries if s.get('lane') == 'operation'])
 
@@ -1500,8 +1510,11 @@ async def get_dashboard_stats(user_id: str, background_tasks: BackgroundTasks):
             "operations": operations,
             "unread_opportunities": unread_opportunities,
             "unread_operations": unread_operations,
+            "unread_opportunities": unread_opportunities,
+            "unread_operations": unread_operations,
             "total_unread": total_unread,
             "avg_match_score": round(avg_match_score, 2),
+            "processed_24h": processed_24h,
             "recent_opportunities": [
                 {
                     "id": s["id"],

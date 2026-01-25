@@ -399,7 +399,11 @@ function DashboardContent() {
         ? profile.keywords
         : profile.keywords.split(',').map((k: string) => k.trim()).filter((k: string) => k)
 
-      const role = (profile.role || 'Investor') as UserRole
+      let role = (profile.role || 'Investor') as UserRole
+      // Fix mismatch between frontend onboarding value and backend Enum
+      if (role === 'Founder' as any) {
+        role = 'Founder/Business Owner' as UserRole
+      }
 
       setRefreshing(true)
 

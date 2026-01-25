@@ -50,7 +50,10 @@ async function apiFetch<T>(
       const errorData = await response.json().catch(() => ({
         detail: `HTTP ${response.status}: ${response.statusText}`,
       }))
-      throw new Error(errorData.detail || `Request failed: ${response.statusText}`)
+      const errorDetail = typeof errorData.detail === 'object'
+        ? JSON.stringify(errorData.detail)
+        : (errorData.detail || `Request failed: ${response.statusText}`)
+      throw new Error(errorDetail)
     }
 
     return response.json()
@@ -457,8 +460,10 @@ export async function getDashboardStats(userId: string) {
     operations: number
     unread_opportunities: number
     unread_operations: number
+    unread_operations: number
     total_unread: number
     avg_match_score: number
+    processed_24h: number
     recent_opportunities: Array<{
       id: string
       subject: string
