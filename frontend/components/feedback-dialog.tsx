@@ -40,21 +40,20 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
     setSending(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message.trim(),
+          category: type === 'feedback' ? 'General' : 'Bug', // Mapping type to category
+          email: user?.email || '',
+        }),
+      })
 
-      if (!user) {
-        toast.error('Please log in to send feedback')
-        return
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to send feedback')
       }
-
-      await sendFeedback(
-        user.id,
-        user.email || '',
-        subject.trim(),
-        message.trim(),
-        type
-      )
 
       toast.success('Thank you for your feedback!')
       setSubject('')
@@ -62,6 +61,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       setType('feedback')
       onOpenChange(false)
     } catch (error: any) {
+      console.error('Feedback Error:', error)
       toast.error(error.message || 'Failed to send feedback')
     } finally {
       setSending(false)
