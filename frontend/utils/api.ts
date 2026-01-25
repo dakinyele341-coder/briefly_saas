@@ -460,7 +460,6 @@ export async function getDashboardStats(userId: string) {
     operations: number
     unread_opportunities: number
     unread_operations: number
-    unread_operations: number
     total_unread: number
     avg_match_score: number
     processed_24h: number
