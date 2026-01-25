@@ -697,12 +697,8 @@ def scan_emails(request: ScanRequest):
             # No emails found even after fallback attempts
             logger.warning(f"[Scan] No emails found for user {request.user_id} even after trying multiple time ranges (7 days, 30 days, unread)")
             msg = (
-                "No emails found in your Gmail account after checking multiple time ranges. "
-                "This could mean:\n"
-                "1. Your Gmail account truly has no emails\n"
-                "2. Gmail credentials may need to be reconnected\n"
-                "3. There may be a Gmail API permission issue\n\n"
-                "Please try: Disconnect and reconnect your Gmail account in Settings."
+                "No new emails found to analyze. Briefly checks your recent emails for matching opportunities and operations. "
+                "If you believe this is an error, try reconnecting your Gmail in Settings."
             )
             return ScanResponse(summaries=[], processed=0, skipped=0, total_found=0, message=msg)
         
