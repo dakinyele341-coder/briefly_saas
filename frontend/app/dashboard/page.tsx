@@ -620,18 +620,17 @@ function DashboardContent() {
           setUserRole(profile.role as UserRole)
         }
 
+        setCheckingConnection(false)
+        setGmailConnected(credentialsRes.connected)
+        if (subInfo) setSubscriptionInfo(subInfo)
+        setBackendOnline(true)
+
         // Check if user has completed onboarding
         if (!profile?.onboarding_completed) {
           setShowOnboarding(true)
           setLoading(false)
-          setBackendOnline(true) // Assume online if we got here
           return
         }
-
-        setGmailConnected(credentialsRes.connected)
-        setCheckingConnection(false)
-        if (subInfo) setSubscriptionInfo(subInfo)
-        setBackendOnline(true)
 
         // Parallelize data fetching and one-time checks
         const dataPromises: Promise<any>[] = [
