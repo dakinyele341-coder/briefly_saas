@@ -655,15 +655,6 @@ function SettingsContent() {
           </div>
         </div>
       </div>
-    </>
-  )
-}
-
-export default function SettingsPage() {
-  return (
-    <GoogleOAuthProvider clientId={googleClientId}>
-      <SettingsContent />
-
       <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
         <DialogContent>
           <DialogHeader>
@@ -698,6 +689,14 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <SettingsContent />
     </GoogleOAuthProvider>
   )
 }
