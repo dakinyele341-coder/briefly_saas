@@ -79,7 +79,7 @@ export function StatsDashboard({
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
-            Opportunities
+            Priority Inbox
           </CardTitle>
           <Sparkles className="h-4 w-4 text-yellow-500" />
         </CardHeader>
@@ -105,7 +105,7 @@ export function StatsDashboard({
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
-            Operations
+            Everything Else
           </CardTitle>
           <Briefcase className="h-4 w-4 text-gray-500" />
         </CardHeader>

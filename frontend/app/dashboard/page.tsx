@@ -56,12 +56,13 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
 
 const LANE_A_TITLES: Record<UserRole, string> = {
-  Investor: 'Opportunities',
-  'Agency Owner': 'Opportunities',
-  'Founder/Business Owner': 'Opportunities',
-  'Operator / Executive': 'Opportunities',
-  'Other': 'Opportunities',
+  Investor: 'Priority Inbox',
+  'Agency Owner': 'Priority Inbox',
+  'Founder/Business Owner': 'Priority Inbox',
+  'Operator / Executive': 'Priority Inbox',
+  'Other': 'Priority Inbox',
 }
+
 
 
 
@@ -949,7 +950,7 @@ function DashboardContent() {
                   )}
                 >
                   <Briefcase className={cn("h-4 w-4", activeTab === 'operations' ? "text-blue-500" : "text-gray-400")} />
-                  Operations
+                  Everything Else
                   <Badge variant="outline" className={cn("ml-2", activeTab === 'operations' ? "bg-blue-100 text-blue-700" : "")}>
                     {totalOperations}
                   </Badge>
@@ -966,7 +967,7 @@ function DashboardContent() {
                       <Sparkles className="h-5 w-5 text-yellow-500" />
                       {LANE_A_TITLES[userRole]}
                     </h2>
-                    <span className="text-sm text-gray-500">{totalOpportunities} opportunities</span>
+                    <span className="text-sm text-gray-500">{totalOpportunities} items</span>
                   </div>
 
                   {opportunities.length === 0 ? (
@@ -976,9 +977,9 @@ function DashboardContent() {
                           <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
                             <Sparkles className="h-10 w-10 text-yellow-500" />
                           </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2">The Gold Mine is Empty</h3>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">Your Priority Inbox is Empty</h3>
                           <p className="text-gray-500">
-                            We haven't found any opportunities matching your professional thesis yet. Try scanning your inbox using the button at the top!
+                            Emails matching your professional profile and priorities will appear here. Try scanning your inbox using the button at the top!
                           </p>
                         </div>
                       </CardContent>
@@ -1110,7 +1111,7 @@ function DashboardContent() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-semibold flex items-center gap-2">
                       <Briefcase className="h-5 w-5 text-blue-500" />
-                      Operations
+                      Everything Else
                     </h2>
                     <span className="text-sm text-gray-500">{totalOperations} items</span>
                   </div>
@@ -1124,7 +1125,7 @@ function DashboardContent() {
                           </div>
                           <h3 className="text-xl font-bold text-gray-900 mb-2">Clear Inbox!</h3>
                           <p className="text-gray-500">
-                            Your operational inbox is empty. All low-priority or administrative emails will appear here once found.
+                            All emails that don't match your professional profile will appear here.
                           </p>
                         </div>
                       </CardContent>

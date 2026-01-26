@@ -87,6 +87,7 @@ ANALYSIS PRINCIPLES (STRICT):
 2. **INTENT INFERENCE:** Identify what the sender really wants (e.g., a decision, a referral, an update, a payment, a favor).
 3. **CONTEXTUAL RELEVANCE:** How does this email affect the user's specific role ({role_display}) and their current focus areas?
 4. **URGENCY & IMPACT:** Identify hidden urgency (soft deadlines) and potential business upside or downside.
+5. **PROFILE MATCHING:** Determine if this email is RELEVANT to the user's role, priorities, and focus areas. An email matches if it relates to their profession, current priorities, or non-missable categories.
 
 IMPORTANCE RANKING (DYNAMIC):
 Rank the email into one of these EXACT categories based on business impact and decision dependency:
@@ -94,6 +95,20 @@ Rank the email into one of these EXACT categories based on business impact and d
 - 🟠 Important — review today: Time-sensitive but not immediate, important stakeholders, or significant progress blocks.
 - 🟡 Useful — review later: Relevant updates, moderate opportunities, or useful networking.
 - ⚪ Low priority — optional: Newsletters, generic updates, or low-relevance outreaches.
+
+PROFILE MATCHING CRITERIA:
+An email MATCHES the user's profile if ANY of the following are true:
+- It directly relates to their professional role ({role_display})
+- It aligns with their current focus areas: {', '.join(current_focus) if current_focus else 'General productivity'}
+- It falls into their non-missable categories: {', '.join(critical_categories) if critical_categories else 'High-stakes communications'}
+- It could impact their business goals or professional success
+- It requires a decision or action from someone in their role
+
+An email DOES NOT MATCH if:
+- It's completely unrelated to their profession or priorities
+- It's generic spam, newsletters they didn't prioritize, or mass marketing
+- It's meant for a different department or role
+- It has no business relevance to their stated context
 
 DOCUMENT & ATTACHMENT ANALYSIS:
 {'[ENABLED] - Thoroughly analyze pitch decks, contracts, and attachments for decision-relevant insights only. Ignore marketing fluff.' if pdf_analysis_allowed else '[DISABLED] - Do not analyze attachments.'}
@@ -104,6 +119,8 @@ EMAIL CONTENT:
 OUTPUT REQUIREMENTS (JSON ONLY):
 Return a JSON object with this exact structure:
 {{
+    "matches_user_profile": true or false,
+    "match_reasoning": "Brief explanation of why this email does or does not match the user's profile",
     "importance_level": "🔴 Critical — act now" | "🟠 Important — review today" | "🟡 Useful — review later" | "⚪ Low priority — optional",
     "executive_summary": "1-3 sentence summary focusing on the core business intent and required action.",
     "action_required": "Specific next step or 'No immediate action required'",
@@ -164,15 +181,32 @@ Return ONLY the JSON object."""
             result['importance_level'] = ImportanceLevel.LOW_PRIORITY.value
             logger.warning(f"[Briefly AI] Invalid importance level, defaulting to LOW_PRIORITY")
 
-        # Map to legacy fields for backward compatibility
-        importance_mapping = {
-            ImportanceLevel.CRITICAL.value: ('operation', 'CRITICAL', 9),
-            ImportanceLevel.IMPORTANT.value: ('opportunity', 'HIGH', 7),
-            ImportanceLevel.USEFUL.value: ('opportunity', 'STANDARD', 5),
-            ImportanceLevel.LOW_PRIORITY.value: ('operation', 'LOW', 2)
+        # Map importance level to score for sorting (higher = more important)
+        importance_score_mapping = {
+            ImportanceLevel.CRITICAL.value: 9,
+            ImportanceLevel.IMPORTANT.value: 7,
+            ImportanceLevel.USEFUL.value: 5,
+            ImportanceLevel.LOW_PRIORITY.value: 2
         }
 
-        lane, category, score = importance_mapping.get(result['importance_level'], ('operation', 'LOW', 2))
+        score = importance_score_mapping.get(result['importance_level'], 2)
+
+        # Determine lane based on profile matching (NOT priority)
+        # - "priority_inbox" = emails that match user's profile/priorities
+        # - "everything_else" = emails that don't match user's profile
+        matches_profile = result.get('matches_user_profile', False)
+        
+        # Also support old lane values for backwards compatibility with existing database records
+        lane = 'priority_inbox' if matches_profile else 'everything_else'
+        
+        # Map to category for backwards compatibility
+        category_mapping = {
+            ImportanceLevel.CRITICAL.value: 'CRITICAL',
+            ImportanceLevel.IMPORTANT.value: 'HIGH',
+            ImportanceLevel.USEFUL.value: 'STANDARD',
+            ImportanceLevel.LOW_PRIORITY.value: 'LOW'
+        }
+        category = category_mapping.get(result['importance_level'], 'LOW')
 
         # Ensure required fields exist
         result.setdefault('executive_summary', 'Email analyzed')
@@ -182,6 +216,7 @@ Return ONLY the JSON object."""
         result.setdefault('sender_goals', 'General communication')
         result.setdefault('urgency_signals', 'Standard priority')
         result.setdefault('reply_draft', '')
+        result.setdefault('match_reasoning', '')
 
         # Add legacy compatibility fields
         result['lane'] = lane
@@ -201,7 +236,7 @@ Return ONLY the JSON object."""
         logger.error(f"Briefly AI error: Failed to parse JSON response: {e}")
         return {
             'importance_level': ImportanceLevel.LOW_PRIORITY.value,
-            'lane': 'operation',
+            'lane': 'everything_else',
             'category': 'LOW',
             'importance_score': 2,
             'summary': 'Unable to analyze email',
@@ -223,7 +258,7 @@ Return ONLY the JSON object."""
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
             return {
                 'importance_level': ImportanceLevel.LOW_PRIORITY.value,
-                'lane': 'operation',
+                'lane': 'everything_else',
                 'category': 'LOW',
                 'importance_score': 2,
                 'summary': 'AI analysis unavailable - API quota exceeded. Please upgrade your Gemini API plan.',
@@ -241,7 +276,7 @@ Return ONLY the JSON object."""
         elif "403" in error_msg or "PERMISSION_DENIED" in error_msg:
             return {
                 'importance_level': ImportanceLevel.LOW_PRIORITY.value,
-                'lane': 'operation',
+                'lane': 'everything_else',
                 'category': 'LOW',
                 'importance_score': 2,
                 'summary': 'AI analysis unavailable - API authentication failed.',
@@ -259,7 +294,7 @@ Return ONLY the JSON object."""
         else:
             return {
                 'importance_level': ImportanceLevel.LOW_PRIORITY.value,
-                'lane': 'operation',
+                'lane': 'everything_else',
                 'category': 'LOW',
                 'importance_score': 2,
                 'summary': f'Analysis error: {error_msg[:50]}...',

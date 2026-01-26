@@ -1048,36 +1048,39 @@ async def get_stats(user_id: str):
         summaries = result.data
         total_processed = len(summaries)
 
-        # Count by lane
-        opportunities = sum(1 for s in summaries if s.get('lane') == 'opportunity')
-        operations = sum(1 for s in summaries if s.get('lane') == 'operation')
+        # Count by lane (support both old and new lane values for backwards compatibility)
+        # Old: 'opportunity' / 'operation'
+        # New: 'priority_inbox' / 'everything_else'
+        priority_inbox = sum(1 for s in summaries if s.get('lane') in ('opportunity', 'priority_inbox'))
+        everything_else = sum(1 for s in summaries if s.get('lane') in ('operation', 'everything_else'))
 
-        # Count unread opportunities
-        unread_opportunities = sum(
+        # Count unread priority inbox
+        unread_priority_inbox = sum(
             1 for s in summaries
-            if s.get('lane') == 'opportunity' and not s.get('is_read', False)
+            if s.get('lane') in ('opportunity', 'priority_inbox') and not s.get('is_read', False)
         )
 
-        # Count unread operations
-        unread_operations = sum(
+        # Count unread everything else
+        unread_everything_else = sum(
             1 for s in summaries
-            if s.get('lane') == 'operation' and not s.get('is_read', False)
+            if s.get('lane') in ('operation', 'everything_else') and not s.get('is_read', False)
         )
 
-        # Calculate average match score for opportunities
-        opportunity_scores = [
+        # Calculate average match score for priority inbox items
+        priority_inbox_scores = [
             float(s.get('thesis_match_score', 0))
             for s in summaries
-            if s.get('lane') == 'opportunity' and s.get('thesis_match_score') is not None
+            if s.get('lane') in ('opportunity', 'priority_inbox') and s.get('thesis_match_score') is not None
         ]
-        avg_match_score = sum(opportunity_scores) / len(opportunity_scores) if opportunity_scores else 0.0
+        avg_match_score = sum(priority_inbox_scores) / len(priority_inbox_scores) if priority_inbox_scores else 0.0
 
         return {
             "total_processed": total_processed,
-            "opportunities": opportunities,
-            "operations": operations,
-            "unread_opportunities": unread_opportunities,
-            "unread_operations": unread_operations,
+            # Use new naming in response but keep old keys for backwards compatibility
+            "opportunities": priority_inbox,  # Legacy name
+            "operations": everything_else,  # Legacy name
+            "unread_opportunities": unread_priority_inbox,  # Legacy name
+            "unread_operations": unread_everything_else,  # Legacy name
             "avg_match_score": round(avg_match_score, 2)
         }
 
@@ -1118,8 +1121,14 @@ async def get_email_history(
             query = query.eq('is_read', False)
 
         # Add lane filter if requested
-        if lane and lane in ['opportunity', 'operation']:
-            query = query.eq('lane', lane)
+        # Support both old and new lane values for backwards compatibility
+        if lane:
+            if lane in ['opportunity', 'priority_inbox']:
+                # Query for priority inbox (both old and new values)
+                query = query.in_('lane', ['opportunity', 'priority_inbox'])
+            elif lane in ['operation', 'everything_else']:
+                # Query for everything else (both old and new values)
+                query = query.in_('lane', ['operation', 'everything_else'])
 
         # Order by creation date (newest first)
         result = query\
@@ -1478,36 +1487,35 @@ async def get_dashboard_stats(user_id: str, background_tasks: BackgroundTasks):
             if s.get('created_at') and datetime.fromisoformat(s.get('created_at').replace('Z', '+00:00')) > one_day_ago
         ])
 
-        opportunities = len([s for s in summaries if s.get('lane') == 'opportunity'])
-        operations = len([s for s in summaries if s.get('lane') == 'operation'])
+        # Support both old and new lane values for backwards compatibility
+        priority_inbox = len([s for s in summaries if s.get('lane') in ('opportunity', 'priority_inbox')])
+        everything_else = len([s for s in summaries if s.get('lane') in ('operation', 'everything_else')])
 
         # Unread counts
-        unread_opportunities = len([
+        unread_priority_inbox = len([
             s for s in summaries
-            if s.get('lane') == 'opportunity' and not s.get('is_read', False)
+            if s.get('lane') in ('opportunity', 'priority_inbox') and not s.get('is_read', False)
         ])
-        unread_operations = len([
+        unread_everything_else = len([
             s for s in summaries
-            if s.get('lane') == 'operation' and not s.get('is_read', False)
+            if s.get('lane') in ('operation', 'everything_else') and not s.get('is_read', False)
         ])
-        total_unread = unread_opportunities + unread_operations
+        total_unread = unread_priority_inbox + unread_everything_else
 
         # Average match score
-        opportunity_scores = [
+        priority_inbox_scores = [
             float(s.get('thesis_match_score', 0))
             for s in summaries
-            if s.get('lane') == 'opportunity' and s.get('thesis_match_score') is not None
+            if s.get('lane') in ('opportunity', 'priority_inbox') and s.get('thesis_match_score') is not None
         ]
-        avg_match_score = sum(opportunity_scores) / len(opportunity_scores) if opportunity_scores else 0.0
+        avg_match_score = sum(priority_inbox_scores) / len(priority_inbox_scores) if priority_inbox_scores else 0.0
 
         return {
             "total_processed": total_processed,
-            "opportunities": opportunities,
-            "operations": operations,
-            "unread_opportunities": unread_opportunities,
-            "unread_operations": unread_operations,
-            "unread_opportunities": unread_opportunities,
-            "unread_operations": unread_operations,
+            "opportunities": priority_inbox,  # Legacy key
+            "operations": everything_else,  # Legacy key
+            "unread_opportunities": unread_priority_inbox,  # Legacy key
+            "unread_operations": unread_everything_else,  # Legacy key
             "total_unread": total_unread,
             "avg_match_score": round(avg_match_score, 2),
             "processed_24h": processed_24h,
@@ -1520,8 +1528,8 @@ async def get_dashboard_stats(user_id: str, background_tasks: BackgroundTasks):
                     "thesis_match_score": s.get("thesis_match_score")
                 }
                 for s in summaries
-                if s.get('lane') == 'opportunity'
-            ][:5],  # Last 5 opportunities
+                if s.get('lane') in ('opportunity', 'priority_inbox')
+            ][:5],  # Last 5 priority inbox items
             "recent_operations": [
                 {
                     "id": s["id"],
@@ -1530,8 +1538,8 @@ async def get_dashboard_stats(user_id: str, background_tasks: BackgroundTasks):
                     "is_read": s.get("is_read", False)
                 }
                 for s in summaries
-                if s.get('lane') == 'operation'
-            ][:5]  # Last 5 operations
+                if s.get('lane') in ('operation', 'everything_else')
+            ][:5]  # Last 5 everything else items
         }
 
     except Exception as e:
