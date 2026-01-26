@@ -32,4 +32,5 @@ export interface OnboardingData {
   currentFocus: string[];
   criticalCategories: string[];
   communicationStyle: 'Short & direct' | 'Polite & professional' | 'Warm & conversational' | 'Formal';
+  subscriptionStatus?: string; // New field for subscription tracking
 }

@@ -7,8 +7,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { TagInput } from '@/components/ui/tag-input'
-import { Loader2, Save, ArrowLeft, Sparkles, Info, LogOut, UserPlus, Edit, User, Mail, CheckCircle2, AlertCircle, Target, AlertTriangle, MessageSquare, FileText, Settings } from 'lucide-react'
+import { Loader2, Save, ArrowLeft, Sparkles, Info, LogOut, UserPlus, Edit, User, Mail, CheckCircle2, AlertCircle, Target, AlertTriangle, MessageSquare, FileText, Settings, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import toast from 'react-hot-toast'
 import { UserRole } from '@/types'
 import { MenuBar } from '@/components/menu-bar'
@@ -41,6 +56,14 @@ const STYLE_OPTIONS = [
   'Short & direct', 'Polite & professional', 'Warm & conversational', 'Formal'
 ]
 
+const CANCELLATION_REASONS = [
+  'Too expensive',
+  'Found another tool',
+  'Not using it enough',
+  'Missing features',
+  'Other'
+]
+
 const ROLE_EXAMPLES: Record<string, string> = {
   Founder: 'e.g., Venture growth, Product-market fit, Hiring, Scaling',
   'Agency Owner': 'e.g., Lead gen, Client retention, Upselling, Service delivery',
@@ -65,6 +88,14 @@ function SettingsContent() {
   const [gmailConnected, setGmailConnected] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(false)
 
+  // Subscription State
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('free')
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>('free')
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancellationReason, setCancellationReason] = useState<string>('')
+  const [flutterwaveSubId, setFlutterwaveSubId] = useState<string | null>(null)
+
   const router = useRouter()
 
   useEffect(() => {
@@ -83,7 +114,7 @@ function SettingsContent() {
         // Load user profile from Supabase
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role, current_focus, critical_categories, communication_style, business_context')
+          .select('role, current_focus, critical_categories, communication_style, business_context, subscription_status, subscription_plan, flutterwave_subscription_id')
           .eq('id', currentUser.id)
           .single()
 
@@ -107,6 +138,16 @@ function SettingsContent() {
 
           if (profile.business_context) {
             setBusinessContext(profile.business_context)
+          }
+
+          if (profile.subscription_status) {
+            setSubscriptionStatus(profile.subscription_status)
+          }
+          if (profile.subscription_plan) {
+            setSubscriptionPlan(profile.subscription_plan)
+          }
+          if (profile.flutterwave_subscription_id) {
+            setFlutterwaveSubId(profile.flutterwave_subscription_id)
           }
         }
 
@@ -190,6 +231,39 @@ function SettingsContent() {
   const handleSwitchAccount = async () => {
     // Sign out and redirect to login
     await handleSignOut()
+  }
+
+  const handleCancelSubscription = async () => {
+    if (!cancellationReason) {
+      toast.error('Please select a reason for cancellation')
+      return
+    }
+
+    setIsCancelling(true)
+    try {
+      const response = await fetch('/api/subscription/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: cancellationReason }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription')
+      }
+
+      setSubscriptionStatus('cancelled_pending')
+      setShowCancelModal(false)
+      toast.success('Subscription cancelled successfully. You have access until the end of the billing period.')
+    } catch (error: any) {
+      console.error('Error cancelling subscription:', error)
+      toast.error(error.message || 'Failed to cancel subscription')
+    } finally {
+      setIsCancelling(false)
+    }
   }
 
   const handleSave = async () => {
@@ -434,6 +508,58 @@ function SettingsContent() {
                   </CardContent>
                 </Card>
 
+                {/* Subscription Management Card */}
+                {/* Show if plan is explicitly NOT free OR if they have a fluttering sub ID.
+                    The prompt said "Only show this if the user is on a 'Pro' plan",
+                    but user also said "let the cancel subscription be for everyone".
+                    I'll show it if they have an active-looking status or a sub ID.
+                */}
+                {(subscriptionPlan !== 'free' || flutterwaveSubId) && (
+                  <Card className="shadow-xl border-0 overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+                      <CardTitle className=" text-xl flex items-center gap-2">
+                        <CreditCard className="h-5 w-5 text-purple-600" />
+                        Subscription Management
+                      </CardTitle>
+                      <CardDescription>
+                        Manage your current plan and billing.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-purple-50/50 rounded-xl border border-purple-100">
+                        <div>
+                          <p className="font-semibold text-gray-900 capitalize">
+                            {subscriptionPlan} Plan
+                          </p>
+                          <p className="text-sm text-gray-500 capitalize">
+                            Status: {subscriptionStatus.replace('_', ' ')}
+                          </p>
+                        </div>
+                        {/* If already cancelled pending or fully cancelled, show badge instead of button?
+                              For now, hiding cancel button if already cancelled/pending to avoid confusion,
+                              or disable it.
+                          */}
+                      </div>
+
+                      {subscriptionStatus !== 'cancelled' && subscriptionStatus !== 'cancelled_pending' && (
+                        <Button
+                          variant="destructive"
+                          className="w-full"
+                          onClick={() => setShowCancelModal(true)}
+                        >
+                          Cancel Subscription
+                        </Button>
+                      )}
+                      {subscriptionStatus === 'cancelled_pending' && (
+                        <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-md border border-amber-100 flex items-center gap-2">
+                          <Info className="h-4 w-4" />
+                          Your subscription is cancelled but active until the end of the billing cycle.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 <div className="space-y-8">
                   {/* Gmail Connection Card */}
                   <Card className="shadow-xl border-0 overflow-hidden">
@@ -537,6 +663,41 @@ export default function SettingsPage() {
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <SettingsContent />
+
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Subscription</DialogTitle>
+            <DialogDescription>
+              Are you sure? You will retain access until your billing cycle ends.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block">Why are you leaving?</label>
+            <Select onValueChange={setCancellationReason} value={cancellationReason}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {CANCELLATION_REASONS.map((reason) => (
+                  <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelModal(false)} disabled={isCancelling}>
+              Keep Subscription
+            </Button>
+            <Button variant="destructive" onClick={handleCancelSubscription} disabled={isCancelling || !cancellationReason}>
+              {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirm Cancellation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </GoogleOAuthProvider>
   )
 }
